@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
-import { ArrowLeft, ChevronLeft, ChevronRight, X, HelpCircle } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { Tables } from "@/integrations/supabase/types";
@@ -91,10 +91,15 @@ function ProductDetail() {
   const navigate = useNavigate();
   const { addItem } = useCart();
   const [sizeOpen, setSizeOpen] = useState(false);
+  const [imageIndex, setImageIndex] = useState(0);
+  const [slideDir, setSlideDir] = useState<"up" | "down" | null>(null);
 
-  // Touch swipe refs
+  // Touch refs
   const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
   const touchEndX = useRef(0);
+  const touchEndY = useRef(0);
+  const hasSwiped = useRef(false);
 
   // Fetch current product
   const { data: product, isLoading } = useQuery({
@@ -105,6 +110,29 @@ function ProductDetail() {
       return data;
     },
   });
+
+  // Fetch extra images
+  const { data: extraImages } = useQuery({
+    queryKey: ["product-images", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_images").select("*").eq("product_id", id).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Build full image list: main image first, then extras
+  const allImages: string[] = [];
+  if (product?.image_url) allImages.push(product.image_url);
+  if (extraImages) {
+    for (const img of extraImages) allImages.push(img.image_url);
+  }
+  if (allImages.length === 0) allImages.push(""); // placeholder for "no image"
+
+  // Reset image index when product changes
+  useEffect(() => {
+    setImageIndex(0);
+  }, [id]);
 
   // Fetch sizes for this product
   const { data: sizes } = useQuery({
@@ -128,42 +156,90 @@ function ProductDetail() {
     },
   });
 
-  // Determine prev/next
+  // Determine prev/next product
   const currentIndex = siblings?.findIndex((p) => p.id === id) ?? -1;
   const prevId = siblings && currentIndex > 0 ? siblings[currentIndex - 1].id : siblings && siblings.length > 0 ? siblings[siblings.length - 1].id : null;
   const nextId = siblings && currentIndex < (siblings.length - 1) ? siblings[currentIndex + 1].id : siblings && siblings.length > 0 ? siblings[0].id : null;
 
-  const goTo = useCallback(
-    (targetId: string | null) => {
+  const goToProduct = useCallback(
+    (targetId: string | null, dir: "up" | "down") => {
       if (!targetId || targetId === id) return;
+      setSlideDir(dir);
       navigate({ to: "/product/$id", params: { id: targetId }, search: { cat } });
     },
     [navigate, id, cat],
   );
 
-  // Keyboard nav
+  // Prefetch next/prev product images
+  useEffect(() => {
+    if (!siblings) return;
+    const idsToPreload = [prevId, nextId].filter(Boolean) as string[];
+    for (const pid of idsToPreload) {
+      supabase.from("products").select("image_url").eq("id", pid).single().then(({ data }) => {
+        if (data?.image_url) {
+          const img = new window.Image();
+          img.src = data.image_url;
+        }
+      });
+    }
+  }, [siblings, prevId, nextId]);
+
+  const goToImage = useCallback(
+    (dir: "prev" | "next") => {
+      setImageIndex((cur) => {
+        if (dir === "next") return cur < allImages.length - 1 ? cur + 1 : 0;
+        return cur > 0 ? cur - 1 : allImages.length - 1;
+      });
+    },
+    [allImages.length],
+  );
+
+  // Keyboard nav: left/right = images, up/down = products
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (sizeOpen) return;
-      if (e.key === "ArrowLeft") goTo(prevId);
-      if (e.key === "ArrowRight") goTo(nextId);
+      if (e.key === "ArrowLeft") goToImage("prev");
+      if (e.key === "ArrowRight") goToImage("next");
+      if (e.key === "ArrowUp") { e.preventDefault(); goToProduct(prevId, "down"); }
+      if (e.key === "ArrowDown") { e.preventDefault(); goToProduct(nextId, "up"); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [prevId, nextId, goTo, sizeOpen]);
+  }, [prevId, nextId, goToProduct, goToImage, sizeOpen]);
 
-  // Touch swipe handlers
+  // Touch handlers: horizontal = images, vertical = products
   const onTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    touchEndX.current = e.touches[0].clientX;
+    touchEndY.current = e.touches[0].clientY;
+    hasSwiped.current = false;
   };
   const onTouchMove = (e: React.TouchEvent) => {
     touchEndX.current = e.touches[0].clientX;
+    touchEndY.current = e.touches[0].clientY;
+    hasSwiped.current = true;
+    // Prevent pull-to-refresh / native scroll when vertical swipe detected
+    const dy = Math.abs(touchEndY.current - touchStartY.current);
+    const dx = Math.abs(touchEndX.current - touchStartX.current);
+    if (dy > 10 || dx > 10) e.preventDefault();
   };
   const onTouchEnd = () => {
-    const diff = touchStartX.current - touchEndX.current;
-    if (Math.abs(diff) > 50) {
-      if (diff > 0) goTo(nextId); // swipe left → next
-      else goTo(prevId); // swipe right → prev
+    if (!hasSwiped.current) return;
+    const dx = touchStartX.current - touchEndX.current;
+    const dy = touchStartY.current - touchEndY.current;
+    const absDx = Math.abs(dx);
+    const absDy = Math.abs(dy);
+
+    // Determine dominant axis
+    if (absDx > absDy && absDx > 50) {
+      // Horizontal swipe → cycle images
+      if (dx > 0) goToImage("next");
+      else goToImage("prev");
+    } else if (absDy > absDx && absDy > 80) {
+      // Vertical swipe → navigate products
+      if (dy > 0) goToProduct(nextId, "up"); // swipe up → next product
+      else goToProduct(prevId, "down"); // swipe down → prev product
     }
   };
 
@@ -212,9 +288,12 @@ function ProductDetail() {
     );
   }
 
+  const currentImage = allImages[imageIndex];
+  const hasMultipleImages = allImages.length > 1;
+
   return (
     <div
-      className="relative px-4 py-6 md:px-8 min-h-[calc(100vh-57px)]"
+      className="relative px-4 py-6 md:px-8 h-[calc(100vh-57px)] overflow-hidden overscroll-none touch-none"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -224,34 +303,76 @@ function ProductDetail() {
         <ArrowLeft className="h-3 w-3" /> Back
       </Link>
 
-      {/* Desktop nav arrows */}
+      {/* Desktop image arrows (left/right) */}
+      {hasMultipleImages && (
+        <>
+          <button
+            onClick={() => goToImage("prev")}
+            className="hidden md:flex fixed left-6 top-1/2 -translate-y-1/2 z-30 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Previous image"
+          >
+            <ChevronLeft className="h-8 w-8" />
+          </button>
+          <button
+            onClick={() => goToImage("next")}
+            className="hidden md:flex fixed right-6 top-1/2 -translate-y-1/2 z-30 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Next image"
+          >
+            <ChevronRight className="h-8 w-8" />
+          </button>
+        </>
+      )}
+
+      {/* Desktop product arrows (up/down) */}
       {prevId && prevId !== id && (
         <button
-          onClick={() => goTo(prevId)}
-          className="hidden md:flex fixed left-6 top-1/2 -translate-y-1/2 z-30 text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => goToProduct(prevId, "down")}
+          className="hidden md:flex fixed top-20 left-1/2 -translate-x-1/2 z-30 text-muted-foreground hover:text-foreground transition-colors"
           aria-label="Previous product"
         >
-          <ChevronLeft className="h-8 w-8" />
+          <ChevronUp className="h-8 w-8" />
         </button>
       )}
       {nextId && nextId !== id && (
         <button
-          onClick={() => goTo(nextId)}
-          className="hidden md:flex fixed right-6 top-1/2 -translate-y-1/2 z-30 text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => goToProduct(nextId, "up")}
+          className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-30 text-muted-foreground hover:text-foreground transition-colors"
           aria-label="Next product"
         >
-          <ChevronRight className="h-8 w-8" />
+          <ChevronDown className="h-8 w-8" />
         </button>
       )}
 
       <div className="max-w-lg mx-auto">
-        <div className="aspect-square bg-secondary overflow-hidden">
-          {product.image_url ? (
-            <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
+        {/* Image area with dot indicators */}
+        <div
+          key={`${id}-img`}
+          className={`relative aspect-square bg-secondary overflow-hidden ${
+            slideDir === "up" ? "animate-slide-up" : slideDir === "down" ? "animate-slide-down" : ""
+          }`}
+          onAnimationEnd={() => setSlideDir(null)}
+        >
+          {currentImage ? (
+            <img src={currentImage} alt={product.name} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs uppercase tracking-widest">No image</div>
           )}
+
+          {/* Dot indicators */}
+          {hasMultipleImages && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {allImages.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setImageIndex(i)}
+                  className={`h-1.5 w-1.5 rounded-full transition-colors ${i === imageIndex ? "bg-foreground" : "bg-foreground/30"}`}
+                  aria-label={`Image ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
         </div>
+
         <div className="mt-4">
           <h1 className="text-sm font-bold uppercase tracking-wider">{product.name}</h1>
           <p className="text-sm text-muted-foreground mt-1">${product.price.toFixed(2)}</p>

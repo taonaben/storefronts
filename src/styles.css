@@ -94,3 +94,19 @@
     font-family: var(--font-sans);
   }
 }
+
+/* Product image slide transitions */
+@keyframes slide-in-from-bottom {
+  from { transform: translateY(60%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes slide-in-from-top {
+  from { transform: translateY(-60%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-up {
+  animation: slide-in-from-bottom 0.3s ease-out;
+}
+.animate-slide-down {
+  animation: slide-in-from-top 0.3s ease-out;
+}

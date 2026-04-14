@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/contexts/CartContext";
-import { ArrowLeft, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X, HelpCircle } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, X, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { Tables } from "@/integrations/supabase/types";
@@ -184,6 +184,22 @@ function ProductDetail() {
     }
   }, [siblings, prevId, nextId]);
 
+  // Mouse wheel → navigate products
+  useEffect(() => {
+    let wheelTimeout: ReturnType<typeof setTimeout> | null = null;
+    const handler = (e: WheelEvent) => {
+      if (sizeOpen) return;
+      if (wheelTimeout) return; // debounce
+      if (Math.abs(e.deltaY) < 30) return;
+      e.preventDefault();
+      wheelTimeout = setTimeout(() => { wheelTimeout = null; }, 400);
+      if (e.deltaY > 0) goToProduct(nextId, "up");
+      else goToProduct(prevId, "down");
+    };
+    window.addEventListener("wheel", handler, { passive: false });
+    return () => window.removeEventListener("wheel", handler);
+  }, [prevId, nextId, goToProduct, sizeOpen]);
+
   const goToImage = useCallback(
     (dir: "prev" | "next") => {
       setImageIndex((cur) => {
@@ -323,30 +339,12 @@ function ProductDetail() {
         </>
       )}
 
-      {/* Desktop product arrows (up/down) */}
-      {prevId && prevId !== id && (
-        <button
-          onClick={() => goToProduct(prevId, "down")}
-          className="hidden md:flex fixed top-20 left-1/2 -translate-x-1/2 z-30 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Previous product"
-        >
-          <ChevronUp className="h-8 w-8" />
-        </button>
-      )}
-      {nextId && nextId !== id && (
-        <button
-          onClick={() => goToProduct(nextId, "up")}
-          className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-30 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Next product"
-        >
-          <ChevronDown className="h-8 w-8" />
-        </button>
-      )}
 
-      <div className="max-w-lg mx-auto">
-        {/* Image area with dot indicators */}
+
+      {/* Mobile: stacked layout */}
+      <div className="md:hidden max-w-lg mx-auto">
         <div
-          key={`${id}-img`}
+          key={`${id}-img-mobile`}
           className={`relative aspect-square bg-secondary overflow-hidden ${
             slideDir === "up" ? "animate-slide-up" : slideDir === "down" ? "animate-slide-down" : ""
           }`}
@@ -357,8 +355,6 @@ function ProductDetail() {
           ) : (
             <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs uppercase tracking-widest">No image</div>
           )}
-
-          {/* Dot indicators */}
           {hasMultipleImages && (
             <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
               {allImages.map((_, i) => (
@@ -372,15 +368,51 @@ function ProductDetail() {
             </div>
           )}
         </div>
-
         <div className="mt-4">
           <h1 className="text-sm font-bold uppercase tracking-wider">{product.name}</h1>
           <p className="text-sm text-muted-foreground mt-1">${product.price.toFixed(2)}</p>
           {isInStock ? (
-            <Button
-              onClick={handleAddToCart}
-              className="w-full mt-6 uppercase tracking-widest text-xs h-11"
-            >
+            <Button onClick={handleAddToCart} className="w-full mt-6 uppercase tracking-widest text-xs h-11">
+              Add to Cart
+            </Button>
+          ) : (
+            <p className="text-xs text-destructive mt-4 uppercase tracking-wider">Out of stock</p>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop: side-by-side layout */}
+      <div className="hidden md:flex items-center justify-center gap-12 h-[calc(100%-2rem)] max-w-5xl mx-auto">
+        <div
+          key={`${id}-img-desktop`}
+          className={`relative bg-secondary overflow-hidden flex-shrink-0 h-[min(70vh,560px)] aspect-square ${
+            slideDir === "up" ? "animate-slide-up" : slideDir === "down" ? "animate-slide-down" : ""
+          }`}
+          onAnimationEnd={() => setSlideDir(null)}
+        >
+          {currentImage ? (
+            <img src={currentImage} alt={product.name} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground text-xs uppercase tracking-widest">No image</div>
+          )}
+          {hasMultipleImages && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {allImages.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setImageIndex(i)}
+                  className={`h-1.5 w-1.5 rounded-full transition-colors ${i === imageIndex ? "bg-foreground" : "bg-foreground/30"}`}
+                  aria-label={`Image ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex flex-col justify-center min-w-[200px]">
+          <h1 className="text-sm font-bold uppercase tracking-wider">{product.name}</h1>
+          <p className="text-sm text-muted-foreground mt-1">${product.price.toFixed(2)}</p>
+          {isInStock ? (
+            <Button onClick={handleAddToCart} className="w-full mt-6 uppercase tracking-widest text-xs h-11">
               Add to Cart
             </Button>
           ) : (

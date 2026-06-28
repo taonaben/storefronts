@@ -1,8 +1,9 @@
-import { Outlet, Link, createRootRoute, HeadContent, Scripts, useMatches } from "@tanstack/react-router";
+import { HeadContent, Link, Outlet, Scripts, createRootRoute, useMatches } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CartProvider } from "@/contexts/CartContext";
 import { Header } from "@/components/Header";
 import { Toaster } from "@/components/ui/sonner";
+import { APP_NAME } from "@/lib/storefront";
 
 import appCss from "../styles.css?url";
 
@@ -17,7 +18,7 @@ function NotFoundComponent() {
         <p className="mt-2 text-sm text-muted-foreground">The page you're looking for doesn't exist.</p>
         <div className="mt-6">
           <Link to="/" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-            Go home
+            Find a store
           </Link>
         </div>
       </div>
@@ -30,8 +31,8 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "SneakersPlug — Premium Sneakers & Streetwear" },
-      { name: "description", content: "Shop the latest sneakers, jackets, and accessories at SneakersPlug. Zimbabwe delivery." },
+      { title: `${APP_NAME} - Find a store` },
+      { name: "description", content: "Search for active stores and browse their products." },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -75,3 +76,4 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
+

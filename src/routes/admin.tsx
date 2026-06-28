@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminStores } from "@/hooks/useAdminStores";
 import { cn } from "@/lib/utils";
+import { APP_NAME } from "@/lib/storefront";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
-    meta: [{ title: "Admin - SneakersPlug" }],
+    meta: [{ title: `Admin - ${APP_NAME}` }],
   }),
   component: AdminLayout,
 });

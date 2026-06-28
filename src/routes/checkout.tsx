@@ -1,17 +1,18 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useCart } from "@/contexts/CartContext";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCart } from "@/contexts/CartContext";
+import { supabase } from "@/integrations/supabase/client";
+import { APP_NAME } from "@/lib/storefront";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
     meta: [
-      { title: "Checkout - SneakersPlug" },
-      { name: "description", content: "Complete your order at SneakersPlug." },
+      { title: `Checkout - ${APP_NAME}` },
+      { name: "description", content: "Complete your order." },
     ],
   }),
   component: CheckoutPage,
@@ -28,7 +29,7 @@ function CheckoutPage() {
     queryKey: ["checkout-store", storeId],
     enabled: !!storeId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("stores").select("id, name, order_notification_phone").eq("id", storeId).single();
+      const { data, error } = await supabase.from("stores").select("id, name, slug, order_notification_phone").eq("id", storeId).single();
       if (error) throw error;
       return data;
     },
@@ -55,7 +56,14 @@ function CheckoutPage() {
     setSubmitting(true);
 
     try {
-      const orderItems = items.map((i) => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, size: i.size || null, size_id: i.size_id || null }));
+      const orderItems = items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        size: item.size || null,
+        size_id: item.size_id || null,
+      }));
 
       const { error } = await supabase.from("orders").insert({
         store_id: storeId,
@@ -69,9 +77,9 @@ function CheckoutPage() {
       } as any);
       if (error) throw error;
 
-      const lines = items.map((i) => {
-        const sizeStr = i.size ? ` (Size: ${i.size})` : "";
-        return `${i.quantity}x ${i.name}${sizeStr} - $${(i.price * i.quantity).toFixed(2)}`;
+      const lines = items.map((item) => {
+        const sizeStr = item.size ? ` (Size: ${item.size})` : "";
+        return `${item.quantity}x ${item.name}${sizeStr} - $${(item.price * item.quantity).toFixed(2)}`;
       });
       const msg = `New ${store?.name ?? "store"} order\n\n` +
         `Name: ${form.name}\nPhone: ${form.phone}\nEmail: ${form.email}\nCity: ${form.city}\nAddress: ${form.address}\n\n` +
@@ -80,7 +88,8 @@ function CheckoutPage() {
 
       clearCart();
       if (phone) window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
-      navigate({ to: "/" });
+      if (store?.slug) navigate({ to: "/s/$slug", params: { slug: store.slug } });
+      else navigate({ to: "/" });
     } catch {
       alert("Failed to place order. Please try again.");
     } finally {
@@ -89,8 +98,8 @@ function CheckoutPage() {
   };
 
   return (
-    <div className="px-4 py-6 md:px-8 max-w-lg mx-auto">
-      <h1 className="text-sm font-bold uppercase tracking-wider mb-6">Checkout</h1>
+    <div className="mx-auto max-w-lg px-4 py-6 md:px-8">
+      <h1 className="mb-6 text-sm font-bold uppercase tracking-wider">Checkout</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="text-xs uppercase tracking-wider text-muted-foreground">Full Name</label>
@@ -106,13 +115,13 @@ function CheckoutPage() {
         </div>
         <div>
           <label className="text-xs uppercase tracking-wider text-muted-foreground">City</label>
-          <Select value={form.city} onValueChange={(v) => setForm((f) => ({ ...f, city: v }))}>
+          <Select value={form.city} onValueChange={(value) => setForm((f) => ({ ...f, city: value }))}>
             <SelectTrigger className="mt-1">
               <SelectValue placeholder="Select delivery city" />
             </SelectTrigger>
             <SelectContent>
-              {zones?.map((z) => (
-                <SelectItem key={z.id} value={z.name}>{z.name}</SelectItem>
+              {zones?.map((zone) => (
+                <SelectItem key={zone.id} value={zone.name}>{zone.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -122,15 +131,16 @@ function CheckoutPage() {
           <Input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} required className="mt-1" />
         </div>
 
-        <div className="border-t pt-4 flex items-center justify-between">
+        <div className="flex items-center justify-between border-t pt-4">
           <span className="text-xs uppercase tracking-wider">Total</span>
           <span className="text-sm font-bold">${subtotal.toFixed(2)}</span>
         </div>
 
-        <Button type="submit" disabled={submitting || !form.city} className="w-full uppercase tracking-widest text-xs h-11">
+        <Button type="submit" disabled={submitting || !form.city} className="h-11 w-full text-xs uppercase tracking-widest">
           {submitting ? "Placing order..." : "Place Order"}
         </Button>
       </form>
     </div>
   );
 }
+

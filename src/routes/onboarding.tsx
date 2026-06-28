@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { saveSelectedStoreId } from "@/lib/adminStoreSelection";
 import { slugify } from "@/hooks/useAdminStores";
+import { APP_NAME } from "@/lib/storefront";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
-    meta: [{ title: "Owner Onboarding - SneakersPlug" }],
+    meta: [{ title: `Owner Onboarding - ${APP_NAME}` }],
   }),
   component: OnboardingPage,
 });

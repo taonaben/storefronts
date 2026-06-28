@@ -150,8 +150,8 @@ begin
     insert into public.stores (owner_id, name, slug, order_notification_phone)
     values (
       default_owner_id,
-      'SneakersPlug',
-      'sneakersplug',
+      'Default Store',
+      'default-store',
       (select phone from public.owner_profiles where user_id = default_owner_id)
     )
     on conflict (slug) do update set slug = excluded.slug

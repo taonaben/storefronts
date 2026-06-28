@@ -23,13 +23,15 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | null>(null);
 
-const CART_KEY = "sneakersplug_cart";
+const CART_KEY = "storefront_cart";
+const LEGACY_CART_KEY = "sneakersplug_cart";
 
 function loadCart(): CartItem[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(CART_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const legacyRaw = localStorage.getItem(LEGACY_CART_KEY);
+    return raw ? JSON.parse(raw) : legacyRaw ? JSON.parse(legacyRaw) : [];
   } catch {
     return [];
   }

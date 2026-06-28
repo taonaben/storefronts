@@ -5,11 +5,22 @@ interface ProductCardProps {
   product: Tables<"products">;
   compact?: boolean;
   categoryId?: string | null;
+  storeSlug?: string;
 }
 
-export function ProductCard({ product, compact, categoryId }: ProductCardProps) {
+export function ProductCard({ product, compact, categoryId, storeSlug }: ProductCardProps) {
+  const linkProps = storeSlug
+    ? {
+        to: "/s/$slug/product/$id" as const,
+        params: { slug: storeSlug, id: product.id },
+      }
+    : {
+        to: "/product/$id" as const,
+        params: { id: product.id },
+      };
+
   return (
-    <Link to="/product/$id" params={{ id: product.id }} search={{ cat: categoryId || undefined }} className="group block">
+    <Link {...linkProps} search={{ cat: categoryId || undefined }} className="group block">
       <div className="aspect-square overflow-hidden bg-secondary">
         {product.image_url ? (
           <img

@@ -1,40 +1,42 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { ProductCard } from "@/components/ProductCard";
-import { Grid3X3, LayoutGrid } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { APP_NAME } from "@/lib/storefront";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "SneakersPlug — Premium Sneakers & Streetwear" },
-      { name: "description", content: "Shop the latest sneakers, jackets, and accessories at SneakersPlug. Delivery across Zimbabwe." },
-      { property: "og:title", content: "SneakersPlug — Premium Sneakers & Streetwear" },
-      { property: "og:description", content: "Shop the latest sneakers, jackets, and accessories." },
+      { title: `${APP_NAME} - Find a store` },
+      { name: "description", content: "Search for active stores and browse their products." },
+      { property: "og:title", content: `${APP_NAME} - Find a store` },
+      { property: "og:description", content: "Search for active stores and browse their products." },
     ],
   }),
   component: HomePage,
 });
 
 function HomePage() {
-  const [expanded, setExpanded] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const term = search.trim();
 
-  const { data: categories } = useQuery({
-    queryKey: ["categories"],
+  const { data: stores, isLoading } = useQuery({
+    queryKey: ["public-stores", term],
     queryFn: async () => {
-      const { data, error } = await supabase.from("categories").select("*").order("sort_order");
-      if (error) throw error;
-      return data;
-    },
-  });
+      let query = supabase
+        .from("stores")
+        .select("id, name, slug, description, logo_url")
+        .eq("active", true)
+        .order("name")
+        .limit(12);
 
-  const { data: products, isLoading } = useQuery({
-    queryKey: ["products", activeCategory],
-    queryFn: async () => {
-      let query = supabase.from("products").select("*").order("created_at", { ascending: false });
-      if (activeCategory) query = query.eq("category_id", activeCategory);
+      if (term) {
+        const safeTerm = term.replace(/[%,]/g, "");
+        query = query.or(`name.ilike.%${safeTerm}%,slug.ilike.%${safeTerm}%`);
+      }
+
       const { data, error } = await query;
       if (error) throw error;
       return data;
@@ -42,53 +44,47 @@ function HomePage() {
   });
 
   return (
-    <div className="px-4 py-6 md:px-8">
-      {/* Category filters */}
-      <div className="flex items-center gap-3 mb-6 overflow-x-auto">
-        <button
-          onClick={() => setActiveCategory(null)}
-          className={`text-xs uppercase tracking-widest whitespace-nowrap pb-1 border-b-2 transition-colors ${
-            !activeCategory ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          All
-        </button>
-        {categories?.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setActiveCategory(cat.id)}
-            className={`text-xs uppercase tracking-widest whitespace-nowrap pb-1 border-b-2 transition-colors ${
-              activeCategory === cat.id ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {cat.name}
-          </button>
-        ))}
+    <div className="px-4 py-10 md:px-8">
+      <div className="mx-auto max-w-2xl">
+        <h1 className="text-lg font-bold uppercase tracking-wider">Find a Store</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Search stores by name or link.</p>
 
-        {/* Layout toggle */}
-        <button onClick={() => setExpanded(!expanded)} className="ml-auto text-muted-foreground hover:text-foreground" aria-label="Toggle grid layout">
-          {expanded ? <Grid3X3 className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-        </button>
+        <div className="relative mt-6">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search stores"
+            className="pl-9"
+          />
+        </div>
+
+        <div className="mt-6 space-y-3">
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-20 animate-pulse bg-secondary" />)
+          ) : stores?.length === 0 ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">No stores found.</p>
+          ) : (
+            stores?.map((store) => (
+              <Link
+                key={store.id}
+                to="/s/$slug"
+                params={{ slug: store.slug }}
+                className="flex items-center gap-3 border border-border p-3 transition-colors hover:bg-secondary"
+              >
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden bg-secondary text-xs font-bold uppercase">
+                  {store.logo_url ? <img src={store.logo_url} alt={store.name} className="h-full w-full object-cover" /> : store.name.slice(0, 1)}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold uppercase tracking-wider">{store.name}</p>
+                  <p className="mt-0.5 truncate text-[10px] text-muted-foreground">/s/{store.slug}</p>
+                  {store.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{store.description}</p>}
+                </div>
+              </Link>
+            ))
+          )}
+        </div>
       </div>
-
-      {/* Product grid */}
-      {isLoading ? (
-        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${expanded ? 3 : 6}, 1fr)` }}>
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="aspect-square bg-secondary animate-pulse" />
-          ))}
-        </div>
-      ) : products?.length === 0 ? (
-        <p className="text-center text-muted-foreground text-sm py-20">No products yet.</p>
-      ) : (
-        <div
-          className={`grid gap-4 ${expanded ? "grid-cols-2 md:grid-cols-3" : "grid-cols-3 md:grid-cols-6"}`}
-        >
-          {products?.map((product) => (
-            <ProductCard key={product.id} product={product} compact={!expanded} categoryId={activeCategory} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

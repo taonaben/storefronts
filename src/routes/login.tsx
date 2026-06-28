@@ -4,10 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
+import { APP_NAME } from "@/lib/storefront";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
-    meta: [{ title: "Owner Login - SneakersPlug" }],
+    meta: [{ title: `Owner Login - ${APP_NAME}` }],
   }),
   component: LoginPage,
 });

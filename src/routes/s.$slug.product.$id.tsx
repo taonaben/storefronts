@@ -130,6 +130,7 @@ function StoreProductDetail() {
   const touchEndX = useRef(0);
   const touchEndY = useRef(0);
   const hasSwiped = useRef(false);
+  const productPageRef = useRef<HTMLDivElement | null>(null);
 
   const { data: store, isLoading: storeLoading } = useQuery({
     queryKey: ["active-store", slug],
@@ -278,6 +279,25 @@ function StoreProductDetail() {
     return () => window.removeEventListener("wheel", handler);
   }, [goToProduct, nextId, prevId, optionOpen]);
 
+  useEffect(() => {
+    const node = productPageRef.current;
+    if (!node) return;
+
+    const preventNativeScroll = (event: TouchEvent) => {
+      if (optionOpen || event.touches.length !== 1) return;
+
+      const currentX = event.touches[0].clientX;
+      const currentY = event.touches[0].clientY;
+      const dx = Math.abs(currentX - touchStartX.current);
+      const dy = Math.abs(currentY - touchStartY.current);
+
+      if (dx > 10 || dy > 10) event.preventDefault();
+    };
+
+    node.addEventListener("touchmove", preventNativeScroll, { passive: false });
+    return () => node.removeEventListener("touchmove", preventNativeScroll);
+  }, [optionOpen]);
+
   const onTouchStart = (event: React.TouchEvent) => {
     if (optionOpen) return;
 
@@ -408,7 +428,8 @@ function StoreProductDetail() {
 
   return (
     <div
-      className="relative px-4 py-5 sm:px-6 md:h-[calc(100vh-57px)] md:touch-none md:overflow-hidden md:overscroll-none md:px-8 md:py-6"
+      ref={productPageRef}
+      className="relative h-[calc(100dvh-57px)] touch-none overflow-hidden overscroll-none px-4 py-5 sm:px-6 md:h-[calc(100vh-57px)] md:px-8 md:py-6"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -436,10 +457,10 @@ function StoreProductDetail() {
         </>
       )}
 
-      <div className="mx-auto grid max-w-5xl gap-6 pb-8 md:h-[calc(100%-2rem)] md:grid-cols-[minmax(280px,560px)_minmax(200px,280px)] md:items-center md:justify-center md:gap-12 md:pb-0">
+      <div className="mx-auto grid h-[calc(100%-2rem)] max-w-5xl grid-rows-[minmax(0,1fr)_auto] gap-5 md:grid-cols-[minmax(280px,560px)_minmax(200px,280px)] md:grid-rows-1 md:items-center md:justify-center md:gap-12">
         <div
           key={`${id}-image`}
-          className={`relative mx-auto aspect-square w-full max-w-[560px] overflow-hidden bg-secondary md:max-w-[min(70vh,560px)] ${
+          className={`relative mx-auto aspect-square w-full max-w-[min(100%,calc(100dvh-17rem),560px)] overflow-hidden bg-secondary md:max-w-[min(70vh,560px)] ${
             slideDir === "up" ? "animate-slide-up" : slideDir === "down" ? "animate-slide-down" : ""
           }`}
           onAnimationEnd={() => setSlideDir(null)}

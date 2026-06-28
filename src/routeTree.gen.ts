@@ -23,6 +23,7 @@ import { Route as AdminStoresRouteImport } from './routes/admin.stores'
 import { Route as AdminProductsRouteImport } from './routes/admin.products'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
+import { Route as SSlugManageRouteImport } from './routes/s.$slug.manage'
 import { Route as SSlugCheckoutRouteImport } from './routes/s.$slug.checkout'
 import { Route as SSlugCartRouteImport } from './routes/s.$slug.cart'
 import { Route as SSlugProductIdRouteImport } from './routes/s.$slug.product.$id'
@@ -97,6 +98,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
   path: '/categories',
   getParentRoute: () => AdminRoute,
 } as any)
+const SSlugManageRoute = SSlugManageRouteImport.update({
+  id: '/manage',
+  path: '/manage',
+  getParentRoute: () => SSlugRoute,
+} as any)
 const SSlugCheckoutRoute = SSlugCheckoutRouteImport.update({
   id: '/checkout',
   path: '/checkout',
@@ -130,6 +136,7 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof AdminIndexRoute
   '/s/$slug/cart': typeof SSlugCartRoute
   '/s/$slug/checkout': typeof SSlugCheckoutRoute
+  '/s/$slug/manage': typeof SSlugManageRoute
   '/s/$slug/product/$id': typeof SSlugProductIdRoute
 }
 export interface FileRoutesByTo {
@@ -148,6 +155,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminIndexRoute
   '/s/$slug/cart': typeof SSlugCartRoute
   '/s/$slug/checkout': typeof SSlugCheckoutRoute
+  '/s/$slug/manage': typeof SSlugManageRoute
   '/s/$slug/product/$id': typeof SSlugProductIdRoute
 }
 export interface FileRoutesById {
@@ -168,6 +176,7 @@ export interface FileRoutesById {
   '/admin/': typeof AdminIndexRoute
   '/s/$slug/cart': typeof SSlugCartRoute
   '/s/$slug/checkout': typeof SSlugCheckoutRoute
+  '/s/$slug/manage': typeof SSlugManageRoute
   '/s/$slug/product/$id': typeof SSlugProductIdRoute
 }
 export interface FileRouteTypes {
@@ -189,6 +198,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/s/$slug/cart'
     | '/s/$slug/checkout'
+    | '/s/$slug/manage'
     | '/s/$slug/product/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -207,6 +217,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/s/$slug/cart'
     | '/s/$slug/checkout'
+    | '/s/$slug/manage'
     | '/s/$slug/product/$id'
   id:
     | '__root__'
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/s/$slug/cart'
     | '/s/$slug/checkout'
+    | '/s/$slug/manage'
     | '/s/$slug/product/$id'
   fileRoutesById: FileRoutesById
 }
@@ -340,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/s/$slug/manage': {
+      id: '/s/$slug/manage'
+      path: '/manage'
+      fullPath: '/s/$slug/manage'
+      preLoaderRoute: typeof SSlugManageRouteImport
+      parentRoute: typeof SSlugRoute
+    }
     '/s/$slug/checkout': {
       id: '/s/$slug/checkout'
       path: '/checkout'
@@ -387,12 +406,14 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 interface SSlugRouteChildren {
   SSlugCartRoute: typeof SSlugCartRoute
   SSlugCheckoutRoute: typeof SSlugCheckoutRoute
+  SSlugManageRoute: typeof SSlugManageRoute
   SSlugProductIdRoute: typeof SSlugProductIdRoute
 }
 
 const SSlugRouteChildren: SSlugRouteChildren = {
   SSlugCartRoute: SSlugCartRoute,
   SSlugCheckoutRoute: SSlugCheckoutRoute,
+  SSlugManageRoute: SSlugManageRoute,
   SSlugProductIdRoute: SSlugProductIdRoute,
 }
 

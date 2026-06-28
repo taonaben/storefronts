@@ -7,6 +7,9 @@ import { Loader2 } from "lucide-react";
 import { APP_NAME } from "@/lib/storefront";
 
 export const Route = createFileRoute("/login")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: typeof search.redirect === "string" && search.redirect.startsWith("/") ? search.redirect : undefined,
+  }),
   head: () => ({
     meta: [{ title: `Owner Login - ${APP_NAME}` }],
   }),
@@ -21,8 +24,27 @@ async function hasStore(userId: string) {
   return (data?.length ?? 0) > 0;
 }
 
+function redirectStoreManageSlug(redirect: string | undefined) {
+  return redirect?.match(/^\/s\/([^/]+)\/manage$/)?.[1];
+}
+
+async function ownsRedirectStore(userId: string, redirect: string | undefined) {
+  const slug = redirectStoreManageSlug(redirect);
+  if (!slug) return false;
+
+  const { data, error } = await supabase
+    .from("stores")
+    .select("id")
+    .eq("slug", slug)
+    .eq("owner_id", userId)
+    .limit(1);
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
 function LoginPage() {
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,6 +59,11 @@ function LoginPage() {
   };
 
   const routeAfterAuth = async (userId: string) => {
+    if (await ownsRedirectStore(userId, redirect)) {
+      window.location.assign(redirect);
+      return;
+    }
+
     navigate({ to: await hasStore(userId) ? "/admin" : "/onboarding" });
   };
 

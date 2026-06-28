@@ -36,7 +36,7 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
     else navigate({ to: "/cart", replace: true });
   }, [activeSlug, items.length, navigate]);
 
-  const { data: zones } = useQuery({
+  const { data: zones, isLoading: zonesLoading } = useQuery({
     queryKey: ["delivery_zones", storeId],
     enabled: !!storeId,
     queryFn: async () => {
@@ -45,6 +45,7 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
       return data;
     },
   });
+  const hasDeliveryZones = (zones?.length ?? 0) > 0;
 
   if (items.length === 0) {
     return null;
@@ -52,7 +53,8 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!storeId || !form.name.trim() || !form.phone.trim() || !form.email.trim() || !form.city || !form.address.trim()) return;
+    if (!storeId || !form.name.trim() || !form.phone.trim() || !form.email.trim() || !form.address.trim()) return;
+    if (hasDeliveryZones && !form.city) return;
     setSubmitting(true);
 
     try {
@@ -70,7 +72,7 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
         customer_name: form.name.trim(),
         phone: form.phone.trim(),
         email: form.email.trim(),
-        city: form.city,
+        city: hasDeliveryZones ? form.city : "",
         address: form.address.trim(),
         items: orderItems,
         total: subtotal,
@@ -81,8 +83,15 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
         const sizeStr = item.size ? ` (Size: ${item.size})` : "";
         return `${item.quantity}x ${item.name}${sizeStr} - $${(item.price * item.quantity).toFixed(2)}`;
       });
+      const customerLines = [
+        `Name: ${form.name}`,
+        `Phone: ${form.phone}`,
+        `Email: ${form.email}`,
+        ...(hasDeliveryZones ? [`City: ${form.city}`] : []),
+        `Address: ${form.address}`,
+      ];
       const msg = `New ${store?.name ?? "store"} order\n\n` +
-        `Name: ${form.name}\nPhone: ${form.phone}\nEmail: ${form.email}\nCity: ${form.city}\nAddress: ${form.address}\n\n` +
+        `${customerLines.join("\n")}\n\n` +
         `Items:\n${lines.join("\n")}\n\nTotal: $${subtotal.toFixed(2)}`;
       const phone = store?.order_notification_phone?.replace(/\D/g, "");
 
@@ -113,19 +122,21 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
           <label className="text-xs uppercase tracking-wider text-muted-foreground">Email</label>
           <Input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required className="mt-1" />
         </div>
-        <div>
-          <label className="text-xs uppercase tracking-wider text-muted-foreground">City</label>
-          <Select value={form.city} onValueChange={(value) => setForm((f) => ({ ...f, city: value }))}>
-            <SelectTrigger className="mt-1">
-              <SelectValue placeholder="Select delivery city" />
-            </SelectTrigger>
-            <SelectContent>
-              {zones?.map((zone) => (
-                <SelectItem key={zone.id} value={zone.name}>{zone.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {hasDeliveryZones && (
+          <div>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground">City</label>
+            <Select value={form.city} onValueChange={(value) => setForm((f) => ({ ...f, city: value }))}>
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Select delivery city" />
+              </SelectTrigger>
+              <SelectContent>
+                {zones?.map((zone) => (
+                  <SelectItem key={zone.id} value={zone.name}>{zone.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div>
           <label className="text-xs uppercase tracking-wider text-muted-foreground">Delivery Address</label>
           <Input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} required className="mt-1" />
@@ -136,7 +147,7 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
           <span className="text-sm font-bold">${subtotal.toFixed(2)}</span>
         </div>
 
-        <Button type="submit" disabled={submitting || !form.city} className="h-11 w-full text-xs uppercase tracking-widest">
+        <Button type="submit" disabled={submitting || zonesLoading || (hasDeliveryZones && !form.city)} className="h-11 w-full text-xs uppercase tracking-widest">
           {submitting ? "Placing order..." : "Place Order"}
         </Button>
       </form>

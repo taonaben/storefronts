@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,7 +77,7 @@ function AdminStores() {
                     />
                   </div>
                 </div>
-                <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
+                <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto] md:items-start">
                   <Field label="Store Name" helper="Shown on your storefront.">
                     <Input
                       placeholder="store name"
@@ -98,14 +98,21 @@ function AdminStores() {
                       }}
                     />
                   </Field>
-                  <Button
-                    type="button"
-                    variant={selectedStoreId === store.id ? "default" : "outline"}
-                    className="self-end text-xs uppercase"
-                    onClick={() => setSelectedStoreId(store.id)}
-                  >
-                    {selectedStoreId === store.id ? "Selected" : "Select"}
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2 md:flex-nowrap md:pt-[22px]">
+                    <Button
+                      type="button"
+                      variant={selectedStoreId === store.id ? "default" : "outline"}
+                      className="text-xs uppercase"
+                      onClick={() => setSelectedStoreId(store.id)}
+                    >
+                      {selectedStoreId === store.id ? "Selected" : "Select"}
+                    </Button>
+                    <Button asChild type="button" variant="outline" className="text-xs uppercase">
+                      <Link to="/s/$slug" params={{ slug: store.slug }}>
+                        Go to Store
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -145,9 +152,11 @@ function AdminStores() {
               onChange={(e) => setForm((current) => ({ ...current, order_notification_phone: e.target.value }))}
             />
           </Field>
-          <Button type="submit" disabled={createStore.isPending || stores.length >= 3} className="self-end text-xs uppercase tracking-widest">
-            {stores.length >= 3 ? "Store Limit Reached" : createStore.isPending ? "Creating..." : "Create Store"}
-          </Button>
+          <div className="flex items-center md:pt-[22px]">
+            <Button type="submit" disabled={createStore.isPending || stores.length >= 3} className="h-9 w-full text-xs uppercase tracking-widest">
+              {stores.length >= 3 ? "Store Limit Reached" : createStore.isPending ? "Creating..." : "Create Store"}
+            </Button>
+          </div>
         </form>
       </section>
     </div>

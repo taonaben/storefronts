@@ -279,6 +279,8 @@ function StoreProductDetail() {
   }, [goToProduct, nextId, prevId, optionOpen]);
 
   const onTouchStart = (event: React.TouchEvent) => {
+    if (optionOpen) return;
+
     touchStartX.current = event.touches[0].clientX;
     touchStartY.current = event.touches[0].clientY;
     touchEndX.current = event.touches[0].clientX;
@@ -287,7 +289,7 @@ function StoreProductDetail() {
   };
 
   const onTouchMove = (event: React.TouchEvent) => {
-    if (window.innerWidth < 768) return;
+    if (optionOpen) return;
 
     touchEndX.current = event.touches[0].clientX;
     touchEndY.current = event.touches[0].clientY;
@@ -299,6 +301,7 @@ function StoreProductDetail() {
   };
 
   const onTouchEnd = () => {
+    if (optionOpen) return;
     if (!hasSwiped.current) return;
 
     const dx = touchStartX.current - touchEndX.current;

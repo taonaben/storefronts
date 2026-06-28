@@ -1,9 +1,10 @@
-import { createFileRoute, Outlet, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet, Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminStores } from "@/hooks/useAdminStores";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({
@@ -14,9 +15,21 @@ export const Route = createFileRoute("/admin")({
 
 function AdminLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [isAuthed, setIsAuthed] = useState(false);
   const { stores, selectedStoreId, setSelectedStoreId } = useAdminStores();
+  const navItems = [
+    { to: "/admin/stores" as const, label: "Stores" },
+    { to: "/admin/products" as const, label: "Products" },
+    { to: "/admin/orders" as const, label: "Orders" },
+    { to: "/admin/categories" as const, label: "Categories" },
+    { to: "/admin/zones" as const, label: "Zones" },
+  ];
+  const navClass = (to: string) => cn(
+    "border-b border-transparent pb-1 text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground",
+    location.pathname === to && "border-foreground text-foreground font-medium",
+  );
 
   useEffect(() => {
     const check = async () => {
@@ -42,11 +55,11 @@ function AdminLayout() {
         <div className="flex items-center gap-6">
           <Link to="/admin" className="text-sm font-bold uppercase tracking-wider">Admin</Link>
           <nav className="flex items-center gap-4">
-            <Link to="/admin/stores" className="text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground" activeProps={{ className: "text-xs uppercase tracking-wider text-foreground font-medium" }}>Stores</Link>
-            <Link to="/admin/products" className="text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground" activeProps={{ className: "text-xs uppercase tracking-wider text-foreground font-medium" }}>Products</Link>
-            <Link to="/admin/orders" className="text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground" activeProps={{ className: "text-xs uppercase tracking-wider text-foreground font-medium" }}>Orders</Link>
-            <Link to="/admin/categories" className="text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground" activeProps={{ className: "text-xs uppercase tracking-wider text-foreground font-medium" }}>Categories</Link>
-            <Link to="/admin/zones" className="text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground" activeProps={{ className: "text-xs uppercase tracking-wider text-foreground font-medium" }}>Zones</Link>
+            {navItems.map((item) => (
+              <Link key={item.to} to={item.to} className={navClass(item.to)}>
+                {item.label}
+              </Link>
+            ))}
           </nav>
         </div>
         <div className="flex items-center gap-3">

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-
-const SELECTED_STORE_KEY = "sneakersplug_selected_store_id";
+import { getSelectedStoreId, saveSelectedStoreId } from "@/lib/adminStoreSelection";
 
 export function slugify(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -10,8 +9,7 @@ export function slugify(value: string) {
 
 export function useAdminStores() {
   const [selectedStoreId, setSelectedStoreIdState] = useState<string>(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem(SELECTED_STORE_KEY) || "";
+    return getSelectedStoreId();
   });
 
   const { data: user, isLoading: userLoading } = useQuery({
@@ -52,7 +50,7 @@ export function useAdminStores() {
 
   const setSelectedStoreId = (storeId: string) => {
     setSelectedStoreIdState(storeId);
-    if (typeof window !== "undefined") localStorage.setItem(SELECTED_STORE_KEY, storeId);
+    saveSelectedStoreId(storeId);
   };
 
   return {

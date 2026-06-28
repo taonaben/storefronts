@@ -5,7 +5,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Field } from "@/components/admin/Field";
 import { useAdminStores, slugify } from "@/hooks/useAdminStores";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/stores")({
   component: AdminStores,
@@ -59,7 +61,13 @@ function AdminStores() {
         ) : (
           <div className="space-y-3">
             {stores.map((store) => (
-              <div key={store.id} className="border border-border p-3 space-y-3">
+              <div
+                key={store.id}
+                className={cn(
+                  "border border-border p-3 space-y-3 transition-colors",
+                  selectedStoreId === store.id && "border-foreground bg-secondary/40",
+                )}
+              >
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wider">{store.name}</p>
@@ -74,28 +82,33 @@ function AdminStores() {
                   </div>
                 </div>
                 <div className="grid gap-2 md:grid-cols-[1fr_1fr_auto]">
-                  <Input
-                    defaultValue={store.name}
-                    onBlur={(e) => {
-                      const name = e.target.value.trim();
-                      if (name && name !== store.name) updateStore.mutate({ id: store.id, patch: { name } });
-                    }}
-                  />
-                  <Input
-                    placeholder="Order notification phone"
-                    defaultValue={store.order_notification_phone ?? ""}
-                    onBlur={(e) => {
-                      const phone = e.target.value.trim() || null;
-                      if (phone !== store.order_notification_phone) updateStore.mutate({ id: store.id, patch: { order_notification_phone: phone } });
-                    }}
-                  />
+                  <Field label="Store Name" helper="Shown on your storefront.">
+                    <Input
+                      placeholder="store name"
+                      defaultValue={store.name}
+                      onBlur={(e) => {
+                        const name = e.target.value.trim();
+                        if (name && name !== store.name) updateStore.mutate({ id: store.id, patch: { name } });
+                      }}
+                    />
+                  </Field>
+                  <Field label="Order Text Number" helper="Receives WhatsApp order messages.">
+                    <Input
+                      placeholder="0781234567"
+                      defaultValue={store.order_notification_phone ?? ""}
+                      onBlur={(e) => {
+                        const phone = e.target.value.trim() || null;
+                        if (phone !== store.order_notification_phone) updateStore.mutate({ id: store.id, patch: { order_notification_phone: phone } });
+                      }}
+                    />
+                  </Field>
                   <Button
                     type="button"
                     variant={selectedStoreId === store.id ? "default" : "outline"}
-                    className="text-xs uppercase"
+                    className="self-end text-xs uppercase"
                     onClick={() => setSelectedStoreId(store.id)}
                   >
-                    Select
+                    {selectedStoreId === store.id ? "Selected" : "Select"}
                   </Button>
                 </div>
               </div>
@@ -113,24 +126,30 @@ function AdminStores() {
           }}
           className="grid gap-3 md:grid-cols-[1fr_1fr]"
         >
-          <Input
-            placeholder="Store name"
-            value={form.name}
-            onChange={(e) => setForm((current) => ({ ...current, name: e.target.value, slug: current.slug || slugify(e.target.value) }))}
-            required
-          />
-          <Input
-            placeholder="Store slug"
-            value={form.slug}
-            onChange={(e) => setForm((current) => ({ ...current, slug: slugify(e.target.value) }))}
-            required
-          />
-          <Input
-            placeholder="Order notification phone"
-            value={form.order_notification_phone}
-            onChange={(e) => setForm((current) => ({ ...current, order_notification_phone: e.target.value }))}
-          />
-          <Button type="submit" disabled={createStore.isPending || stores.length >= 3} className="text-xs uppercase tracking-widest">
+          <Field label="Store Name" helper="Shown on your storefront.">
+            <Input
+              placeholder="store name"
+              value={form.name}
+              onChange={(e) => setForm((current) => ({ ...current, name: e.target.value, slug: current.slug || slugify(e.target.value) }))}
+              required
+            />
+          </Field>
+          <Field label="Store Link" helper="Used in /s/your-store-link.">
+            <Input
+              placeholder="store-link"
+              value={form.slug}
+              onChange={(e) => setForm((current) => ({ ...current, slug: slugify(e.target.value) }))}
+              required
+            />
+          </Field>
+          <Field label="Order Text Number" helper="Receives WhatsApp order messages.">
+            <Input
+              placeholder="0781234567"
+              value={form.order_notification_phone}
+              onChange={(e) => setForm((current) => ({ ...current, order_notification_phone: e.target.value }))}
+            />
+          </Field>
+          <Button type="submit" disabled={createStore.isPending || stores.length >= 3} className="self-end text-xs uppercase tracking-widest">
             {stores.length >= 3 ? "Store Limit Reached" : createStore.isPending ? "Creating..." : "Create Store"}
           </Button>
         </form>

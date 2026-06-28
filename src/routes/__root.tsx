@@ -63,11 +63,12 @@ function RootComponent() {
   const matches = useMatches();
   const isAdmin = matches.some((m) => m.fullPath.startsWith("/admin"));
   const isLogin = matches.some((m) => m.fullPath === "/login");
+  const isOnboarding = matches.some((m) => m.fullPath === "/onboarding");
 
   return (
     <QueryClientProvider client={queryClient}>
       <CartProvider>
-        {!isAdmin && !isLogin && <Header />}
+        {!isAdmin && !isLogin && !isOnboarding && <Header />}
         <Outlet />
         <Toaster />
       </CartProvider>

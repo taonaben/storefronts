@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdminStores } from "@/hooks/useAdminStores";
+import { Field } from "@/components/admin/Field";
 
 export const Route = createFileRoute("/admin/zones")({
   component: AdminZones,
@@ -57,10 +58,12 @@ function AdminZones() {
           e.preventDefault();
           addMutation.mutate();
         }}
-        className="flex gap-2 mb-6"
+        className="grid gap-2 md:grid-cols-[1fr_auto] mb-6"
       >
-        <Input placeholder="Zone name" value={name} onChange={(e) => setName(e.target.value)} required />
-        <Button type="submit" disabled={addMutation.isPending} className="text-xs uppercase">Add</Button>
+        <Field label="Delivery Zone" helper="Customers choose from active zones at checkout.">
+          <Input placeholder="Harare" value={name} onChange={(e) => setName(e.target.value)} required />
+        </Field>
+        <Button type="submit" disabled={addMutation.isPending} className="self-end text-xs uppercase">Add</Button>
       </form>
       <div className="space-y-2">
         {zones?.map((z) => (

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2 } from "lucide-react";
 import { useAdminStores, slugify } from "@/hooks/useAdminStores";
+import { Field } from "@/components/admin/Field";
 
 export const Route = createFileRoute("/admin/categories")({
   component: AdminCategories,
@@ -51,10 +52,14 @@ function AdminCategories() {
   return (
     <div className="max-w-md">
       <h2 className="text-sm font-bold uppercase tracking-wider mb-4">Categories - {selectedStore.name}</h2>
-      <form onSubmit={(e) => { e.preventDefault(); addMutation.mutate(); }} className="flex gap-2 mb-6">
-        <Input placeholder="Category name" value={name} onChange={(e) => setName(e.target.value)} required className="flex-1" />
-        <Input placeholder="Order" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className="w-16" />
-        <Button type="submit" disabled={addMutation.isPending} className="text-xs uppercase">Add</Button>
+      <form onSubmit={(e) => { e.preventDefault(); addMutation.mutate(); }} className="grid gap-2 md:grid-cols-[1fr_7rem_auto] mb-6">
+        <Field label="Category Name">
+          <Input placeholder="Sneakers" value={name} onChange={(e) => setName(e.target.value)} required />
+        </Field>
+        <Field label="Sort Order" helper="Lower first.">
+          <Input placeholder="0" type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
+        </Field>
+        <Button type="submit" disabled={addMutation.isPending} className="self-end text-xs uppercase">Add</Button>
       </form>
       {isLoading ? <p className="text-xs text-muted-foreground">Loading…</p> : (
         <div className="space-y-2">

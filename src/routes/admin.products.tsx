@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Trash2, Plus, Image } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 import { useAdminStores } from "@/hooks/useAdminStores";
+import { Field } from "@/components/admin/Field";
 
 export const Route = createFileRoute("/admin/products")({
   component: AdminProducts,
@@ -100,15 +101,17 @@ function SizeManager({ productId }: { productId: string }) {
             <div key={s.id} className="flex items-center gap-2">
               <span className="text-xs font-medium w-12">{s.label}</span>
               {s.alt_label && <span className="text-[10px] text-muted-foreground w-12">({s.alt_label})</span>}
-              <Input
-                type="number"
-                defaultValue={String(s.stock)}
-                className="w-20 h-7 text-xs"
-                onBlur={(e) => {
-                  const val = parseInt(e.target.value);
-                  if (!isNaN(val) && val !== s.stock) updateStock.mutate({ id: s.id, stock: val });
-                }}
-              />
+              <Field label="Stock" className="w-20">
+                <Input
+                  type="number"
+                  defaultValue={String(s.stock)}
+                  className="h-7 text-xs"
+                  onBlur={(e) => {
+                    const val = parseInt(e.target.value);
+                    if (!isNaN(val) && val !== s.stock) updateStock.mutate({ id: s.id, stock: val });
+                  }}
+                />
+              </Field>
               <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => deleteSize.mutate(s.id)}>
                 <Trash2 className="h-3 w-3" />
               </Button>
@@ -119,10 +122,16 @@ function SizeManager({ productId }: { productId: string }) {
 
       {/* Add size form */}
       <form onSubmit={(e) => { e.preventDefault(); if (label.trim()) addSize.mutate(); }} className="flex items-center gap-2">
-        <Input placeholder="Label (e.g. 7)" value={label} onChange={(e) => setLabel(e.target.value)} className="w-20 h-7 text-xs" required />
-        <Input placeholder="Alt (e.g. 40)" value={altLabel} onChange={(e) => setAltLabel(e.target.value)} className="w-20 h-7 text-xs" />
-        <Input placeholder="Stock" type="number" value={stock} onChange={(e) => setStock(e.target.value)} className="w-16 h-7 text-xs" />
-        <Button type="submit" size="sm" className="h-7 text-[10px] uppercase" disabled={addSize.isPending}>Add</Button>
+        <Field label="Size" className="w-20">
+          <Input placeholder="7" value={label} onChange={(e) => setLabel(e.target.value)} className="h-7 text-xs" required />
+        </Field>
+        <Field label="Alt" className="w-20">
+          <Input placeholder="40" value={altLabel} onChange={(e) => setAltLabel(e.target.value)} className="h-7 text-xs" />
+        </Field>
+        <Field label="Stock" className="w-16">
+          <Input placeholder="0" type="number" value={stock} onChange={(e) => setStock(e.target.value)} className="h-7 text-xs" />
+        </Field>
+        <Button type="submit" size="sm" className="self-end h-7 text-[10px] uppercase" disabled={addSize.isPending}>Add</Button>
       </form>
     </div>
   );
@@ -186,19 +195,21 @@ function ImageManager({ productId, storeId }: { productId: string; storeId: stri
         </div>
       )}
 
-      <Input
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={(e) => {
-          const files = e.target.files;
-          if (files) {
-            for (const file of Array.from(files)) uploadMutation.mutate(file);
-          }
-          e.target.value = "";
-        }}
-        className="text-xs"
-      />
+      <Field label="Gallery Images" helper="Add up to 3 extra images.">
+        <Input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={(e) => {
+            const files = e.target.files;
+            if (files) {
+              for (const file of Array.from(files)) uploadMutation.mutate(file);
+            }
+            e.target.value = "";
+          }}
+          className="text-xs"
+        />
+      </Field>
       {uploadMutation.isPending && <p className="text-[10px] text-muted-foreground">Uploading…</p>}
     </div>
   );
@@ -344,23 +355,31 @@ function AdminProducts() {
         onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }}
         className="space-y-3 mb-4"
       >
-        <Input placeholder="Product name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-        <div className="flex gap-3">
-          <Input placeholder="Price" type="number" step="0.01" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} required className="flex-1" />
-          <Input placeholder="Stock" type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} required className="w-24" />
+        <Field label="Product Name" helper="Shown on product cards and order messages.">
+          <Input placeholder="Air Force 1" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
+        </Field>
+        <div className="grid gap-3 md:grid-cols-[1fr_8rem]">
+          <Field label="Price">
+            <Input placeholder="45.00" type="number" step="0.01" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} required />
+          </Field>
+          <Field label="Stock" helper="Used if no sizes are added.">
+            <Input placeholder="0" type="number" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} required />
+          </Field>
         </div>
-        <Select value={form.category_id} onValueChange={(v) => setForm((f) => ({ ...f, category_id: v }))}>
-          <SelectTrigger><SelectValue placeholder="Category (optional)" /></SelectTrigger>
-          <SelectContent>
-            {categories?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <Field label="Category" helper="Optional; used for storefront filtering.">
+          <Select value={form.category_id} onValueChange={(v) => setForm((f) => ({ ...f, category_id: v }))}>
+            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+            <SelectContent>
+              {categories?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
 
         {/* Images — single unified picker */}
         <div className="border border-border p-3 space-y-2">
           <h3 className="text-xs font-bold uppercase tracking-wider flex items-center gap-1">
             <Image className="h-3 w-3" /> Images
-            <span className="text-[10px] text-muted-foreground font-normal">(first = main image)</span>
+            <span className="text-[10px] text-muted-foreground font-normal">(first is the cover)</span>
           </h3>
           {pendingImages.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -381,17 +400,19 @@ function AdminProducts() {
               ))}
             </div>
           )}
-          <Input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(e) => {
-              const files = e.target.files;
-              if (files) setPendingImages((p) => [...p, ...Array.from(files)].slice(0, 4));
-              e.target.value = "";
-            }}
-            className="text-xs"
-          />
+          <Field label="Product Images" helper="Choose up to 4 images. The first image becomes the cover.">
+            <Input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => {
+                const files = e.target.files;
+                if (files) setPendingImages((p) => [...p, ...Array.from(files)].slice(0, 4));
+                e.target.value = "";
+              }}
+              className="text-xs"
+            />
+          </Field>
         </div>
 
         {/* Inline sizes (creation mode only) */}
@@ -413,10 +434,16 @@ function AdminProducts() {
               </div>
             )}
             <div className="flex items-center gap-2">
-              <Input placeholder="Label" value={newSize.label} onChange={(e) => setNewSize((s) => ({ ...s, label: e.target.value }))} className="w-20 h-7 text-xs" />
-              <Input placeholder="Alt" value={newSize.altLabel} onChange={(e) => setNewSize((s) => ({ ...s, altLabel: e.target.value }))} className="w-20 h-7 text-xs" />
-              <Input placeholder="Stock" type="number" value={newSize.stock} onChange={(e) => setNewSize((s) => ({ ...s, stock: e.target.value }))} className="w-16 h-7 text-xs" />
-              <Button type="button" size="sm" className="h-7 text-[10px] uppercase" onClick={() => { if (newSize.label.trim()) { setPendingSizes((p) => [...p, newSize]); setNewSize({ label: "", altLabel: "", stock: "0" }); } }}>Add</Button>
+              <Field label="Size" className="w-20">
+                <Input placeholder="7" value={newSize.label} onChange={(e) => setNewSize((s) => ({ ...s, label: e.target.value }))} className="h-7 text-xs" />
+              </Field>
+              <Field label="Alt" className="w-20">
+                <Input placeholder="40" value={newSize.altLabel} onChange={(e) => setNewSize((s) => ({ ...s, altLabel: e.target.value }))} className="h-7 text-xs" />
+              </Field>
+              <Field label="Stock" className="w-16">
+                <Input placeholder="0" type="number" value={newSize.stock} onChange={(e) => setNewSize((s) => ({ ...s, stock: e.target.value }))} className="h-7 text-xs" />
+              </Field>
+              <Button type="button" size="sm" className="self-end h-7 text-[10px] uppercase" onClick={() => { if (newSize.label.trim()) { setPendingSizes((p) => [...p, newSize]); setNewSize({ label: "", altLabel: "", stock: "0" }); } }}>Add</Button>
             </div>
           </div>
         )}

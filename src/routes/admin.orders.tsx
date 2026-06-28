@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminStores } from "@/hooks/useAdminStores";
 import type { Enums } from "@/integrations/supabase/types";
+import { formatSelectedOptions } from "@/lib/productTypes";
 
 export const Route = createFileRoute("/admin/orders")({
   component: AdminOrders,
@@ -51,9 +52,15 @@ function AdminOrders() {
                     <p className="text-[10px] text-muted-foreground">{order.phone} - {order.email} - {order.city}</p>
                     <p className="text-[10px] text-muted-foreground">{order.address}</p>
                     <div className="mt-1">
-                      {items.map((item: any, i: number) => (
-                        <p key={i} className="text-[10px]">{item.quantity}x {item.name} - ${(item.price * item.quantity).toFixed(2)}</p>
-                      ))}
+                      {items.map((item: any, i: number) => {
+                        const optionText = formatSelectedOptions(item.selected_options) || (item.size ? `Size: ${item.size}` : "");
+                        return (
+                          <div key={i} className="text-[10px]">
+                            <p>{item.quantity}x {item.name} - ${(item.price * item.quantity).toFixed(2)}</p>
+                            {optionText && <p className="text-muted-foreground">{optionText}</p>}
+                          </div>
+                        );
+                      })}
                     </div>
                     <p className="text-xs font-bold mt-1">Total: ${order.total}</p>
                     <p className="text-[10px] text-muted-foreground">{new Date(order.created_at).toLocaleString()}</p>

@@ -7,6 +7,8 @@ export interface CartItem {
   price: number;
   image_url: string | null;
   quantity: number;
+  variant_id?: string;
+  selected_options?: Record<string, string>;
   size?: string;
   size_id?: string;
 }
@@ -14,8 +16,8 @@ export interface CartItem {
 interface CartContextType {
   items: CartItem[];
   addItem: (item: Omit<CartItem, "quantity">) => void;
-  removeItem: (id: string, size_id?: string) => void;
-  updateQuantity: (id: string, quantity: number, size_id?: string) => void;
+  removeItem: (id: string, variant_id?: string) => void;
+  updateQuantity: (id: string, quantity: number, variant_id?: string) => void;
   clearCart: () => void;
   totalItems: number;
   subtotal: number;
@@ -31,7 +33,16 @@ function loadCart(): CartItem[] {
   try {
     const raw = localStorage.getItem(CART_KEY);
     const legacyRaw = localStorage.getItem(LEGACY_CART_KEY);
-    return raw ? JSON.parse(raw) : legacyRaw ? JSON.parse(legacyRaw) : [];
+    const parsed = raw ? JSON.parse(raw) : legacyRaw ? JSON.parse(legacyRaw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => {
+      const selected_options = item.selected_options || (item.size ? { Size: item.size } : undefined);
+      return {
+        ...item,
+        variant_id: item.variant_id || item.size_id,
+        selected_options,
+      };
+    });
   } catch {
     return [];
   }
@@ -47,24 +58,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const addItem = (item: Omit<CartItem, "quantity">) => {
     setItems((prev) => {
       const sameStoreItems = prev.filter((i) => i.store_id === item.store_id);
-      const existing = prev.find((i) => i.id === item.id && i.size_id === item.size_id);
+      const existing = prev.find((i) => i.id === item.id && (i.variant_id || i.size_id) === (item.variant_id || item.size_id));
       if (existing) {
-        return prev.map((i) => (i.id === item.id && i.size_id === item.size_id ? { ...i, quantity: i.quantity + 1 } : i));
+        return prev.map((i) => (i.id === item.id && (i.variant_id || i.size_id) === (item.variant_id || item.size_id) ? { ...i, quantity: i.quantity + 1 } : i));
       }
       return [...sameStoreItems, { ...item, quantity: 1 }];
     });
   };
 
-  const removeItem = (id: string, size_id?: string) => {
-    setItems((prev) => prev.filter((i) => !(i.id === id && i.size_id === size_id)));
+  const removeItem = (id: string, variant_id?: string) => {
+    setItems((prev) => prev.filter((i) => !(i.id === id && (i.variant_id || i.size_id) === variant_id)));
   };
 
-  const updateQuantity = (id: string, quantity: number, size_id?: string) => {
+  const updateQuantity = (id: string, quantity: number, variant_id?: string) => {
     if (quantity < 1) {
-      removeItem(id, size_id);
+      removeItem(id, variant_id);
       return;
     }
-    setItems((prev) => prev.map((i) => (i.id === id && i.size_id === size_id ? { ...i, quantity } : i)));
+    setItems((prev) => prev.map((i) => (i.id === id && (i.variant_id || i.size_id) === variant_id ? { ...i, quantity } : i)));
   };
 
   const clearCart = () => setItems([]);

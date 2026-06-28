@@ -1,12 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, HelpCircle, X } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { fetchActiveStoreBySlug } from "@/lib/storefront";
+import { formatSelectedOptions, parseAttributes, selectedOptionsFromJson } from "@/lib/productTypes";
 
 export const Route = createFileRoute("/s/$slug/product/$id")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -30,27 +31,46 @@ function StoreNotFound() {
   );
 }
 
-function SizeSelector({
-  sizes,
+interface OptionWithValues extends Tables<"product_options"> {
+  values: Tables<"product_option_values">[];
+}
+
+function VariantSelector({
+  options,
+  variants,
+  selectedOptions,
+  onSelectOption,
+  onAdd,
+  canAdd,
   price,
-  onSelect,
   onClose,
 }: {
-  sizes: Tables<"product_sizes">[];
+  options: OptionWithValues[];
+  variants: Tables<"product_variants">[];
+  selectedOptions: Record<string, string>;
+  onSelectOption: (name: string, value: string) => void;
+  onAdd: () => void;
+  canAdd: boolean;
   price: number;
-  onSelect: (size: Tables<"product_sizes">) => void;
   onClose: () => void;
 }) {
-  const [showAlt, setShowAlt] = useState(false);
+  const hasSelectedAll = options.every((option) => selectedOptions[option.name]);
+
+  const hasStockForChoice = (optionName: string, value: string) => {
+    const nextSelection = { ...selectedOptions, [optionName]: value };
+    return variants.some((variant) => {
+      if (!variant.active || variant.stock <= 0) return false;
+      const variantOptions = selectedOptionsFromJson(variant.selected_options);
+      return Object.entries(nextSelection).every(([name, selectedValue]) => variantOptions[name] === selectedValue);
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
       <div className="w-full max-w-lg animate-in slide-in-from-bottom bg-background px-6 pb-8 pt-5 duration-200" onClick={(e) => e.stopPropagation()}>
         <div className="mb-2 flex items-center justify-between">
-          <button onClick={() => setShowAlt(!showAlt)} className="text-muted-foreground hover:text-foreground" aria-label="Toggle size format">
-            <HelpCircle className="h-4 w-4" />
-          </button>
-          <span className="text-xs font-bold uppercase tracking-[0.2em]">Select Size</span>
+          <span className="w-4" />
+          <span className="text-xs font-bold uppercase tracking-[0.2em]">Select Options</span>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground" aria-label="Close">
             <X className="h-4 w-4" />
           </button>
@@ -58,24 +78,39 @@ function SizeSelector({
 
         <p className="mb-4 text-center text-sm font-medium">${price.toFixed(2)}</p>
 
-        <div className="grid grid-cols-7 gap-2">
-          {sizes.map((size) => {
-            const outOfStock = size.stock <= 0;
-            const displayLabel = showAlt && size.alt_label ? size.alt_label : size.label;
-            return (
-              <button
-                key={size.id}
-                disabled={outOfStock}
-                onClick={() => onSelect(size)}
-                className={`py-2 text-xs font-medium uppercase tracking-wider transition-colors ${
-                  outOfStock ? "cursor-not-allowed text-muted-foreground/40 line-through" : "text-foreground hover:bg-foreground hover:text-background"
-                }`}
-              >
-                {displayLabel}
-              </button>
-            );
-          })}
+        <div className="space-y-4">
+          {options.map((option) => (
+            <div key={option.id}>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{option.name}</p>
+              <div className="flex flex-wrap gap-2">
+                {option.values.map((value) => {
+                  const selected = selectedOptions[option.name] === value.value;
+                  const disabled = !hasStockForChoice(option.name, value.value);
+                  return (
+                    <button
+                      key={value.id}
+                      disabled={disabled}
+                      onClick={() => onSelectOption(option.name, value.value)}
+                      className={`border px-3 py-2 text-xs font-medium uppercase tracking-wider transition-colors ${
+                        selected
+                          ? "border-foreground bg-foreground text-background"
+                          : disabled
+                            ? "cursor-not-allowed border-border text-muted-foreground/40 line-through"
+                            : "border-border text-foreground hover:border-foreground"
+                      }`}
+                    >
+                      {value.value}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
+
+        <Button onClick={onAdd} disabled={!hasSelectedAll || !canAdd} className="mt-6 h-11 w-full text-xs uppercase tracking-widest">
+          Add to Cart
+        </Button>
       </div>
     </div>
   );
@@ -86,7 +121,8 @@ function StoreProductDetail() {
   const { cat } = Route.useSearch();
   const navigate = useNavigate();
   const { addItem } = useCart();
-  const [sizeOpen, setSizeOpen] = useState(false);
+  const [optionOpen, setOptionOpen] = useState(false);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [imageIndex, setImageIndex] = useState(0);
   const [slideDir, setSlideDir] = useState<"up" | "down" | null>(null);
   const touchStartX = useRef(0);
@@ -125,11 +161,33 @@ function StoreProductDetail() {
     },
   });
 
-  const { data: sizes } = useQuery({
-    queryKey: ["product-sizes", id],
+  const { data: options } = useQuery({
+    queryKey: ["product-options", id],
     enabled: !!product?.id,
     queryFn: async () => {
-      const { data, error } = await supabase.from("product_sizes").select("*").eq("product_id", id).order("sort_order");
+      const { data, error } = await supabase.from("product_options").select("*").eq("product_id", id).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const optionIds = options?.map((option) => option.id) ?? [];
+
+  const { data: optionValues } = useQuery({
+    queryKey: ["product-option-values", optionIds.join(",")],
+    enabled: optionIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_option_values").select("*").in("option_id", optionIds).order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: variants } = useQuery({
+    queryKey: ["product-variants", id],
+    enabled: !!product?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_variants").select("*").eq("product_id", id).eq("active", true).order("sort_order");
       if (error) throw error;
       return data;
     },
@@ -156,6 +214,7 @@ function StoreProductDetail() {
 
   useEffect(() => {
     setImageIndex(0);
+    setSelectedOptions({});
   }, [id]);
 
   const goToImage = useCallback(
@@ -183,7 +242,7 @@ function StoreProductDetail() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (sizeOpen) return;
+      if (optionOpen) return;
       if (event.key === "ArrowLeft") goToImage("prev");
       if (event.key === "ArrowRight") goToImage("next");
       if (event.key === "ArrowUp") {
@@ -198,12 +257,12 @@ function StoreProductDetail() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [goToImage, goToProduct, prevId, nextId, sizeOpen]);
+  }, [goToImage, goToProduct, prevId, nextId, optionOpen]);
 
   useEffect(() => {
     let wheelTimeout: ReturnType<typeof setTimeout> | null = null;
     const handler = (event: WheelEvent) => {
-      if (sizeOpen || wheelTimeout) return;
+      if (optionOpen || wheelTimeout) return;
       if (Math.abs(event.deltaY) < 30) return;
 
       event.preventDefault();
@@ -217,7 +276,7 @@ function StoreProductDetail() {
 
     window.addEventListener("wheel", handler, { passive: false });
     return () => window.removeEventListener("wheel", handler);
-  }, [goToProduct, nextId, prevId, sizeOpen]);
+  }, [goToProduct, nextId, prevId, optionOpen]);
 
   const onTouchStart = (event: React.TouchEvent) => {
     touchStartX.current = event.touches[0].clientX;
@@ -285,32 +344,61 @@ function StoreProductDetail() {
     );
   }
 
-  const hasSizes = sizes && sizes.length > 0;
-  const totalSizeStock = hasSizes ? sizes.reduce((sum, size) => sum + size.stock, 0) : 0;
-  const isInStock = hasSizes ? totalSizeStock > 0 : product.stock > 0;
+  const optionGroups: OptionWithValues[] = (options ?? []).map((option) => ({
+    ...option,
+    values: (optionValues ?? []).filter((value) => value.option_id === option.id),
+  })).filter((option) => option.values.length > 0);
+  const hasVariants = optionGroups.length > 0 && (variants?.length ?? 0) > 0;
+  const totalVariantStock = hasVariants ? variants!.reduce((sum, variant) => sum + (variant.active ? variant.stock : 0), 0) : 0;
+  const selectedVariant = hasVariants
+    ? variants?.find((variant) => {
+        const variantOptions = selectedOptionsFromJson(variant.selected_options);
+        return optionGroups.every((option) => variantOptions[option.name] === selectedOptions[option.name]);
+      })
+    : null;
+  const displayPrice = selectedVariant?.price_override ?? product.price;
+  const attributes = parseAttributes(product.attributes);
+  const isInStock = hasVariants ? totalVariantStock > 0 : product.stock > 0;
   const currentImage = allImages[imageIndex];
   const hasMultipleImages = allImages.length > 1;
 
   const handleAddToCart = () => {
-    if (hasSizes) {
-      setSizeOpen(true);
+    if (hasVariants) {
+      setOptionOpen(true);
       return;
     }
 
     addItem({ id: product.id, store_id: product.store_id, name: product.name, price: product.price, image_url: product.image_url });
   };
 
-  const handleSizeSelect = (size: Tables<"product_sizes">) => {
+  const handleVariantAdd = () => {
+    if (!selectedVariant || selectedVariant.stock <= 0) return;
+    const finalOptions = selectedOptionsFromJson(selectedVariant.selected_options);
     addItem({
       id: product.id,
       store_id: product.store_id,
       name: product.name,
-      price: product.price,
+      price: selectedVariant.price_override ?? product.price,
       image_url: product.image_url,
-      size: size.label,
-      size_id: size.id,
+      variant_id: selectedVariant.id,
+      selected_options: finalOptions,
     });
-    setSizeOpen(false);
+    setOptionOpen(false);
+  };
+
+  const selectOption = (name: string, value: string) => {
+    setSelectedOptions((current) => {
+      const next = { ...current, [name]: value };
+      const matchingVariant = variants?.find((variant) => {
+        if (!variant.active || variant.stock <= 0) return false;
+        const variantOptions = selectedOptionsFromJson(variant.selected_options);
+        return Object.entries(next).every(([optionName, selectedValue]) => variantOptions[optionName] === selectedValue);
+      });
+
+      if (matchingVariant) return next;
+
+      return { [name]: value };
+    });
   };
 
   return (
@@ -372,7 +460,20 @@ function StoreProductDetail() {
 
         <div className="flex flex-col justify-center">
           <h1 className="text-sm font-bold uppercase tracking-wider">{product.name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">${product.price.toFixed(2)}</p>
+          <p className="mt-1 text-sm text-muted-foreground">${displayPrice.toFixed(2)}</p>
+          {attributes.length > 0 && (
+            <dl className="mt-4 grid gap-2 border-t border-border pt-4">
+              {attributes.filter((attribute) => attribute.value).map((attribute) => (
+                <div key={attribute.name} className="grid grid-cols-[7rem_1fr] gap-3 text-xs">
+                  <dt className="uppercase tracking-wider text-muted-foreground">{attribute.name}</dt>
+                  <dd>{attribute.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          {hasVariants && formatSelectedOptions(selectedOptions) && (
+            <p className="mt-4 text-xs text-muted-foreground">{formatSelectedOptions(selectedOptions)}</p>
+          )}
           {isInStock ? (
             <Button onClick={handleAddToCart} className="mt-6 h-11 w-full text-xs uppercase tracking-widest">
               Add to Cart
@@ -383,7 +484,18 @@ function StoreProductDetail() {
         </div>
       </div>
 
-      {sizeOpen && hasSizes && <SizeSelector sizes={sizes} price={product.price} onSelect={handleSizeSelect} onClose={() => setSizeOpen(false)} />}
+      {optionOpen && hasVariants && (
+        <VariantSelector
+          options={optionGroups}
+          variants={variants ?? []}
+          selectedOptions={selectedOptions}
+          onSelectOption={selectOption}
+          onAdd={handleVariantAdd}
+          canAdd={Boolean(selectedVariant && selectedVariant.stock > 0)}
+          price={displayPrice}
+          onClose={() => setOptionOpen(false)}
+        />
+      )}
     </div>
   );
 }

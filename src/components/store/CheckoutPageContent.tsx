@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/client";
+import { formatSelectedOptions } from "@/lib/productTypes";
 
 export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
   const { items, subtotal, clearCart } = useCart();
@@ -60,11 +61,11 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
     try {
       const orderItems = items.map((item) => ({
         id: item.id,
+        variant_id: item.variant_id || item.size_id || null,
         name: item.name,
         price: item.price,
         quantity: item.quantity,
-        size: item.size || null,
-        size_id: item.size_id || null,
+        selected_options: item.selected_options || (item.size ? { Size: item.size } : null),
       }));
 
       const { error } = await supabase.from("orders").insert({
@@ -80,8 +81,9 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
       if (error) throw error;
 
       const lines = items.map((item) => {
-        const sizeStr = item.size ? ` (Size: ${item.size})` : "";
-        return `${item.quantity}x ${item.name}${sizeStr} - $${(item.price * item.quantity).toFixed(2)}`;
+        const optionText = formatSelectedOptions(item.selected_options) || (item.size ? `Size: ${item.size}` : "");
+        const optionsStr = optionText ? ` (${optionText})` : "";
+        return `${item.quantity}x ${item.name}${optionsStr} - $${(item.price * item.quantity).toFixed(2)}`;
       });
       const customerLines = [
         `Name: ${form.name}`,

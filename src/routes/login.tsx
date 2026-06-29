@@ -9,6 +9,8 @@ import { APP_NAME } from "@/lib/storefront";
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => ({
     redirect: typeof search.redirect === "string" && search.redirect.startsWith("/") ? search.redirect : undefined,
+    mode: search.mode === "register" ? "register" : undefined,
+    verified: search.verified === "1" ? "1" : undefined,
   }),
   head: () => ({
     meta: [{ title: `Owner Login - ${APP_NAME}` }],
@@ -44,8 +46,8 @@ async function ownsRedirectStore(userId: string, redirect: string | undefined) {
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { redirect } = Route.useSearch();
-  const [mode, setMode] = useState<AuthMode>("signin");
+  const { redirect, mode: searchMode, verified } = Route.useSearch();
+  const [mode, setMode] = useState<AuthMode>(searchMode ?? "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -76,9 +78,17 @@ function LoginPage() {
   const handleRegister = async () => {
     if (password.length < 6) throw new Error("Password must be at least 6 characters.");
 
+    const emailRedirectTo =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/login?mode=register&verified=1${redirect ? `&redirect=${encodeURIComponent(redirect)}` : ""}`
+        : undefined;
+
     const { data, error: signUpError } = await supabase.auth.signUp({
       email: email.trim(),
       password,
+      options: {
+        emailRedirectTo,
+      },
     });
     if (signUpError) throw signUpError;
 
@@ -103,6 +113,13 @@ function LoginPage() {
 
     if (data.user) navigate({ to: "/onboarding" });
   };
+
+  useEffect(() => {
+    if (!verified) return;
+
+    setMode("register");
+    setNotice("Email confirmed. Sign in to finish setting up your store.");
+  }, [verified]);
 
   useEffect(() => {
     if (!verificationPending) return;

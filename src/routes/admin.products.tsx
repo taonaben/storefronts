@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Image, Plus, RefreshCw, Share2, Trash2, X } from "lucide-react";
 import { Field } from "@/components/admin/Field";
@@ -21,6 +21,7 @@ import {
   type ProductAttribute,
   type ProductType,
 } from "@/lib/productTypes";
+import { appFeedback } from "@/lib/appFeedback";
 import { shareProduct } from "@/lib/productShare";
 import { useProductStore } from "@/state/product_store";
 
@@ -56,6 +57,8 @@ const emptyForm: ProductForm = {
   options: [],
   variants: [],
 };
+
+const PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS = 45_000;
 
 function createEmptyForm(): ProductForm {
   return {
@@ -132,10 +135,34 @@ function getVariantStockTotal(variants: VariantDraft[]) {
   return variants.reduce((sum, variant) => sum + (parseInt(variant.stock) || 0), 0);
 }
 
+function getImageExtension(file: File) {
+  const typeExtension = file.type.split("/")[1]?.toLowerCase();
+  if (typeExtension === "jpeg") return "jpg";
+  if (typeExtension) return typeExtension.replace(/[^a-z0-9]/g, "");
+
+  const lastDot = file.name.lastIndexOf(".");
+  const nameExtension = lastDot >= 0 ? file.name.slice(lastDot + 1).toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+  return nameExtension || "jpg";
+}
+
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error(`${label} timed out. Check your connection and try again.`)), timeoutMs);
+
+    Promise.resolve(promise)
+      .then(resolve, reject)
+      .finally(() => window.clearTimeout(timeout));
+  });
+}
+
 async function uploadProductImage(storeId: string, productId: string, file: File, label: string) {
-  const ext = file.name.split(".").pop();
+  const ext = getImageExtension(file);
   const path = `stores/${storeId}/products/${productId}/${Date.now()}_${label}.${ext}`;
-  const { error: uploadErr } = await supabase.storage.from("product-images").upload(path, file);
+  const { error: uploadErr } = await withTimeout(
+    supabase.storage.from("product-images").upload(path, file),
+    PRODUCT_IMAGE_UPLOAD_TIMEOUT_MS,
+    `Uploading ${label} image`,
+  );
   if (uploadErr) throw uploadErr;
   const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
   return urlData.publicUrl;
@@ -393,10 +420,21 @@ export function ProductEditor({ onSaved }: { onSaved?: () => void }) {
   const qc = useQueryClient();
   const clearStoreProducts = useProductStore((state) => state.clearStoreProducts);
   const { selectedStore, selectedStoreId, isLoading: storesLoading } = useAdminStores();
+  const storeSearch = selectedStoreId ? { store: selectedStoreId } : undefined;
   const [form, setForm] = useState<ProductForm>(() => createEmptyForm());
   const [pendingImages, setPendingImages] = useState<File[]>([]);
+  const pendingImagePreviews = useMemo(
+    () => pendingImages.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [pendingImages],
+  );
   const hasVariants = form.variants.length > 0;
   const stockTotal = hasVariants ? getVariantStockTotal(form.variants) : parseInt(form.stock) || 0;
+
+  useEffect(() => {
+    return () => {
+      pendingImagePreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [pendingImagePreviews]);
 
   const { data: categories } = useQuery({
     queryKey: ["categories", selectedStoreId],
@@ -452,11 +490,18 @@ export function ProductEditor({ onSaved }: { onSaved?: () => void }) {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin-products", selectedStoreId] });
+      void qc.invalidateQueries({ queryKey: ["admin-products", selectedStoreId] });
       if (selectedStoreId) clearStoreProducts(selectedStoreId);
       setForm(createEmptyForm());
       setPendingImages([]);
+      appFeedback.success({
+        title: "Product saved",
+        description: "The product has been added successfully.",
+      });
       onSaved?.();
+    },
+    onError: (error) => {
+      appFeedback.errorFromUnknown(error, "Product was not saved");
     },
   });
 
@@ -476,7 +521,7 @@ export function ProductEditor({ onSaved }: { onSaved?: () => void }) {
   return (
     <div className="max-w-3xl">
       <h2 className="mb-4 text-sm font-bold uppercase tracking-wider">Add Product - {selectedStore.name}</h2>
-      <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }} className="space-y-3">
+      <form onSubmit={(e) => { e.preventDefault(); if (!saveMutation.isPending) saveMutation.mutate(); }} className="space-y-3">
         <div className="grid gap-3 md:grid-cols-[1fr_13rem]">
           <Field label="Product Name" helper="Shown on product cards and order messages.">
             <Input placeholder="Classic Hoodie" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
@@ -525,11 +570,11 @@ export function ProductEditor({ onSaved }: { onSaved?: () => void }) {
             <Image className="h-3 w-3" /> Images
             <span className="text-[10px] text-muted-foreground font-normal">(first is the cover)</span>
           </h3>
-          {pendingImages.length > 0 && (
+          {pendingImagePreviews.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {pendingImages.map((file, i) => (
+              {pendingImagePreviews.map(({ file, url }, i) => (
                 <div key={`${file.name}-${i}`} className="relative group h-16 w-16 bg-secondary overflow-hidden">
-                  <img src={URL.createObjectURL(file)} alt="" className="h-full w-full object-cover" />
+                  <img src={url} alt="" className="h-full w-full object-cover" />
                   {i === 0 && <span className="absolute top-0 left-0 bg-foreground text-background text-[8px] px-1">MAIN</span>}
                   <button type="button" onClick={() => setPendingImages((p) => p.filter((_, j) => j !== i))} className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                     <Trash2 className="h-3 w-3" />
@@ -558,7 +603,7 @@ export function ProductEditor({ onSaved }: { onSaved?: () => void }) {
             {saveMutation.isPending ? "Saving..." : "Add Product"}
           </Button>
           <Button asChild type="button" variant="outline" className="text-xs">
-            <Link to="/admin/products">Cancel</Link>
+            <Link to="/admin/products" search={storeSearch}>Cancel</Link>
           </Button>
         </div>
         {saveMutation.error && <p className="text-xs text-destructive">{saveMutation.error.message}</p>}
@@ -572,6 +617,7 @@ function AdminProducts() {
   const location = useLocation();
   const clearStoreProducts = useProductStore((state) => state.clearStoreProducts);
   const { selectedStore, selectedStoreId, isLoading: storesLoading } = useAdminStores();
+  const storeSearch = selectedStoreId ? { store: selectedStoreId } : undefined;
 
   const { data: products, isLoading } = useQuery({
     queryKey: ["admin-products", selectedStoreId],
@@ -621,7 +667,7 @@ function AdminProducts() {
       <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wider">Products - {selectedStore.name}</h2>
         <Button asChild size="sm" className="h-8 text-[10px] uppercase tracking-wider">
-          <Link to="/admin/products/new">
+          <Link to="/admin/products/new" search={storeSearch}>
             <Plus className="mr-1 h-3 w-3" /> Add Product
           </Link>
         </Button>
@@ -633,7 +679,7 @@ function AdminProducts() {
         <div className="border border-border p-6 text-center">
           <p className="text-xs text-muted-foreground">No products yet.</p>
           <Button asChild size="sm" className="mt-3 h-8 text-[10px] uppercase tracking-wider">
-            <Link to="/admin/products/new">Add Product</Link>
+            <Link to="/admin/products/new" search={storeSearch}>Add Product</Link>
           </Button>
         </div>
       ) : (

@@ -2,7 +2,7 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
-import { APP_NAME, fetchActiveStoreBySlug, fetchStoreById } from "@/lib/storefront";
+import { APP_NAME, fetchStoreById, fetchStoreBySlug } from "@/lib/storefront";
 
 export function Header() {
   const { items, totalItems } = useCart();
@@ -13,7 +13,7 @@ export function Header() {
   const { data: store } = useQuery({
     queryKey: ["header-store", storeSlug],
     enabled: !!storeSlug,
-    queryFn: () => fetchActiveStoreBySlug(storeSlug!),
+    queryFn: () => fetchStoreBySlug(storeSlug!),
   });
   const { data: cartStore } = useQuery({
     queryKey: ["header-cart-store", cartStoreId],

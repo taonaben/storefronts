@@ -3,9 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Share2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StoreClosedMessage } from "@/components/store/StoreClosedMessage";
 import { useCart } from "@/contexts/CartContext";
 import type { Tables } from "@/integrations/supabase/types";
-import { fetchActiveStoreBySlug } from "@/lib/storefront";
+import { fetchStoreBySlug } from "@/lib/storefront";
 import { formatSelectedOptions, parseAttributes, selectedOptionsFromJson } from "@/lib/productTypes";
 import { shareProduct } from "@/lib/productShare";
 import { getProductListKey, useProductStore, type ProductOptionWithValues } from "@/state/product_store";
@@ -143,11 +144,11 @@ function StoreProductDetail() {
   const prefetchProductsAhead = useProductStore((state) => state.prefetchProductsAhead);
 
   const { data: store, isLoading: storeLoading } = useQuery({
-    queryKey: ["active-store", slug],
-    queryFn: () => fetchActiveStoreBySlug(slug),
+    queryKey: ["store", slug],
+    queryFn: () => fetchStoreBySlug(slug),
   });
 
-  const productListKey = store?.id ? getProductListKey(store.id, cat) : null;
+  const productListKey = store?.id && store.active ? getProductListKey(store.id, cat) : null;
   const detail = useProductStore((state) => state.detailsById[id]);
   const detailLoading = useProductStore((state) => state.detailLoadingById[id]);
   const detailError = useProductStore((state) => state.detailErrorsById[id]);
@@ -172,7 +173,7 @@ function StoreProductDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (!store?.id) return;
+    if (!store?.id || !store.active) return;
 
     let cancelled = false;
 
@@ -196,7 +197,7 @@ function StoreProductDetail() {
     return () => {
       cancelled = true;
     };
-  }, [loadProductDetail, prefetchProductsAhead, store?.id, id, cat]);
+  }, [loadProductDetail, prefetchProductsAhead, store?.id, store?.active, id, cat]);
 
   const goToImage = useCallback(
     (dir: "prev" | "next") => {
@@ -331,6 +332,8 @@ function StoreProductDetail() {
   }
 
   if (!store) return <StoreNotFound />;
+
+  if (!store.active) return <StoreClosedMessage storeName={store.name} />;
 
   if (productLoading) {
     return (

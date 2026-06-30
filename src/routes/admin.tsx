@@ -54,7 +54,7 @@ function AdminLayout() {
     <div className="min-h-screen">
       <header className="border-b border-border px-4 py-3 md:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3 md:flex-nowrap">
-          <Link to="/admin" className="shrink-0 text-sm font-bold uppercase tracking-wider">Admin</Link>
+          <Link to="/admin" search={selectedStoreId ? { store: selectedStoreId } : undefined} className="shrink-0 text-sm font-bold uppercase tracking-wider">Admin</Link>
           <div className="flex min-w-0 flex-1 items-center justify-end gap-2 md:order-3 md:flex-none">
             {stores.length > 0 && (
               <Select value={selectedStoreId} onValueChange={setSelectedStoreId}>
@@ -74,7 +74,7 @@ function AdminLayout() {
           </div>
           <nav className="-mx-4 order-3 flex w-[calc(100%+2rem)] items-center gap-4 overflow-x-auto px-4 pt-2 md:order-2 md:mx-0 md:w-auto md:overflow-visible md:px-0 md:pt-0">
             {navItems.map((item) => (
-              <Link key={item.to} to={item.to} className={cn(navClass(item.to), "shrink-0")}>
+              <Link key={item.to} to={item.to} search={selectedStoreId ? { store: selectedStoreId } : undefined} className={cn(navClass(item.to), "shrink-0")}>
                 {item.label}
               </Link>
             ))}

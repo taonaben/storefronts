@@ -8,6 +8,7 @@ export type PublicStore = {
   slug: string;
   description: string | null;
   logo_url: string | null;
+  active: boolean;
   order_notification_phone?: string | null;
 };
 
@@ -22,9 +23,20 @@ export function productPath(slug: string, productId: string) {
 export async function fetchActiveStoreBySlug(slug: string) {
   const { data, error } = await supabase
     .from("stores")
-    .select("id, name, slug, description, logo_url, order_notification_phone")
+    .select("id, name, slug, description, logo_url, active, order_notification_phone")
     .eq("slug", slug)
     .eq("active", true)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as PublicStore | null;
+}
+
+export async function fetchStoreBySlug(slug: string) {
+  const { data, error } = await supabase
+    .from("stores")
+    .select("id, name, slug, description, logo_url, active, order_notification_phone")
+    .eq("slug", slug)
     .maybeSingle();
 
   if (error) throw error;
@@ -34,11 +46,10 @@ export async function fetchActiveStoreBySlug(slug: string) {
 export async function fetchStoreById(storeId: string) {
   const { data, error } = await supabase
     .from("stores")
-    .select("id, name, slug, description, logo_url, order_notification_phone")
+    .select("id, name, slug, description, logo_url, active, order_notification_phone")
     .eq("id", storeId)
     .maybeSingle();
 
   if (error) throw error;
   return data as PublicStore | null;
 }
-

@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StoreClosedMessage } from "@/components/store/StoreClosedMessage";
 import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/client";
 import { formatSelectedOptions } from "@/lib/productTypes";
+import { fetchStoreById } from "@/lib/storefront";
 
 export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
   const { items, subtotal, clearCart } = useCart();
@@ -18,11 +20,7 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
   const { data: store } = useQuery({
     queryKey: ["checkout-store", storeId],
     enabled: !!storeId,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("stores").select("id, name, slug, order_notification_phone").eq("id", storeId).single();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => fetchStoreById(storeId!),
   });
   const activeSlug = storeSlug ?? store?.slug;
 
@@ -52,9 +50,12 @@ export function CheckoutPageContent({ storeSlug }: { storeSlug?: string }) {
     return null;
   }
 
+  if (store && !store.active) return <StoreClosedMessage storeName={store.name} />;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!storeId || !form.name.trim() || !form.phone.trim() || !form.email.trim() || !form.address.trim()) return;
+    if (store && !store.active) return;
     if (hasDeliveryZones && !form.city) return;
     setSubmitting(true);
 

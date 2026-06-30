@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { Minus, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StoreClosedMessage } from "@/components/store/StoreClosedMessage";
 import { useCart } from "@/contexts/CartContext";
 import { formatSelectedOptions } from "@/lib/productTypes";
 import { fetchStoreById } from "@/lib/storefront";
@@ -35,6 +36,8 @@ export function CartPageContent({ storeSlug }: { storeSlug?: string }) {
       </div>
     );
   }
+
+  if (store && !store.active) return <StoreClosedMessage storeName={store.name} />;
 
   return (
     <div className="mx-auto max-w-lg px-4 py-6 md:px-8">

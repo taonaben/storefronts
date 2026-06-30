@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Grid3X3, LayoutGrid } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
+import { StoreClosedMessage } from "@/components/store/StoreClosedMessage";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchActiveStoreBySlug } from "@/lib/storefront";
+import { fetchStoreBySlug } from "@/lib/storefront";
 import { getProductListKey, useProductStore } from "@/state/product_store";
 
 export const Route = createFileRoute("/s/$slug")({
@@ -35,11 +36,11 @@ function StorefrontPage() {
   const loadStoreProducts = useProductStore((state) => state.loadStoreProducts);
 
   const { data: store, isLoading: storeLoading } = useQuery({
-    queryKey: ["active-store", slug],
-    queryFn: () => fetchActiveStoreBySlug(slug),
+    queryKey: ["store", slug],
+    queryFn: () => fetchStoreBySlug(slug),
   });
 
-  const productListKey = store?.id ? getProductListKey(store.id, activeCategory) : null;
+  const productListKey = store?.id && store.active ? getProductListKey(store.id, activeCategory) : null;
   const productIds = useProductStore((state) => (productListKey ? state.listIdsByKey[productListKey] : undefined));
   const productsById = useProductStore((state) => state.productsById);
   const productsLoading = useProductStore((state) => (productListKey ? state.listLoadingByKey[productListKey] : false));
@@ -48,7 +49,7 @@ function StorefrontPage() {
 
   const { data: categories } = useQuery({
     queryKey: ["store-categories", store?.id],
-    enabled: !!store?.id,
+    enabled: !!store?.id && store.active,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("categories")
@@ -61,11 +62,11 @@ function StorefrontPage() {
   });
 
   useEffect(() => {
-    if (!store?.id) return;
+    if (!store?.id || !store.active) return;
     loadStoreProducts(store.id, activeCategory).catch((error) => {
       console.error("Failed to load storefront products", error);
     });
-  }, [loadStoreProducts, store?.id, activeCategory]);
+  }, [loadStoreProducts, store?.id, store?.active, activeCategory]);
 
   if (storeLoading) {
     return (
@@ -79,6 +80,8 @@ function StorefrontPage() {
   }
 
   if (!store) return <StoreNotFound />;
+
+  if (!store.active) return <StoreClosedMessage storeName={store.name} />;
 
   if (isNestedRoute) return <Outlet />;
 

@@ -1,3 +1,4 @@
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +9,11 @@ export function slugify(value: string) {
 }
 
 export function useAdminStores() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const searchStoreId = typeof (location.search as Record<string, unknown>).store === "string"
+    ? ((location.search as Record<string, unknown>).store as string)
+    : "";
   const [selectedStoreId, setSelectedStoreIdState] = useState<string>(() => {
     return getSelectedStoreId();
   });
@@ -42,6 +48,13 @@ export function useAdminStores() {
   );
 
   useEffect(() => {
+    if (searchStoreId && searchStoreId !== selectedStoreId) {
+      setSelectedStoreIdState(searchStoreId);
+      saveSelectedStoreId(searchStoreId);
+    }
+  }, [searchStoreId, selectedStoreId]);
+
+  useEffect(() => {
     if (!stores.length) return;
     if (!selectedStoreId || !stores.some((store) => store.id === selectedStoreId)) {
       setSelectedStoreId(stores[0].id);
@@ -51,6 +64,13 @@ export function useAdminStores() {
   const setSelectedStoreId = (storeId: string) => {
     setSelectedStoreIdState(storeId);
     saveSelectedStoreId(storeId);
+    navigate({
+      replace: true,
+      search: (current) => ({
+        ...current,
+        store: storeId,
+      }),
+    } as never);
   };
 
   return {

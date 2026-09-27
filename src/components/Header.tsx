@@ -7,6 +7,7 @@ import { APP_NAME, fetchStoreById, fetchStoreBySlug } from "@/lib/storefront";
 export function Header() {
   const { items, totalItems } = useCart();
   const location = useLocation();
+  const isLandingPage = location.pathname === "/";
   const storeSlug = location.pathname.match(/^\/s\/([^/]+)/)?.[1];
   const cartStoreId = items[0]?.store_id;
 
@@ -35,6 +36,23 @@ export function Header() {
           </Link>
         )}
         <div className="flex items-center gap-4">
+          {isLandingPage && (
+            <Link
+              to="/login"
+              search={{ redirect: undefined, mode: "register", verified: undefined }}
+              className="border border-border px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              Create store
+            </Link>
+          )}
+          {store && (
+            <Link
+              to="/"
+              className="border border-border px-3 py-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              Exit store
+            </Link>
+          )}
           {store && (
             <Link
               to="/s/$slug/manage"

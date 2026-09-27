@@ -6,7 +6,14 @@ interface ProductSharePayload {
   storeName?: string | null;
 }
 
-export type ProductShareResult = "shared-image" | "shared-link" | "copied";
+interface StoreSharePayload {
+  name: string;
+  url: string;
+  imageUrl?: string | null;
+}
+
+export type ShareResult = "shared-image" | "shared-link" | "copied";
+export type ProductShareResult = ShareResult;
 
 function getShareText({ name, price, storeName }: ProductSharePayload) {
   const priceText = typeof price === "number" ? ` - $${price.toFixed(2)}` : "";
@@ -54,13 +61,11 @@ async function getShareableImage(imageUrl: string | null | undefined, productNam
   }
 }
 
-export async function shareProduct(payload: ProductSharePayload): Promise<ProductShareResult> {
-  const title = payload.name;
-  const text = getShareText(payload);
-  const shareData: ShareData = { title, text, url: payload.url };
+async function shareContent({ title, text, url, imageUrl }: { title: string; text: string; url: string; imageUrl?: string | null }): Promise<ShareResult> {
+  const shareData: ShareData = { title, text, url };
 
   if (typeof navigator !== "undefined" && navigator.share) {
-    const image = await getShareableImage(payload.imageUrl, payload.name);
+    const image = await getShareableImage(imageUrl, title);
     if (image && navigator.canShare?.({ files: [image] })) {
       await navigator.share({ ...shareData, files: [image] });
       return "shared-image";
@@ -70,6 +75,24 @@ export async function shareProduct(payload: ProductSharePayload): Promise<Produc
     return "shared-link";
   }
 
-  await navigator.clipboard.writeText(payload.url);
+  await navigator.clipboard.writeText(url);
   return "copied";
+}
+
+export async function shareProduct(payload: ProductSharePayload): Promise<ProductShareResult> {
+  return shareContent({
+    title: payload.name,
+    text: getShareText(payload),
+    url: payload.url,
+    imageUrl: payload.imageUrl,
+  });
+}
+
+export async function shareStore(payload: StoreSharePayload): Promise<ShareResult> {
+  return shareContent({
+    title: payload.name,
+    text: payload.name,
+    url: payload.url,
+    imageUrl: payload.imageUrl,
+  });
 }

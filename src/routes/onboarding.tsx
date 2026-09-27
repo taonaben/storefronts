@@ -7,6 +7,7 @@ import { saveSelectedStoreId } from "@/lib/adminStoreSelection";
 import { slugify } from "@/hooks/useAdminStores";
 import { APP_NAME } from "@/lib/storefront";
 import { cn } from "@/lib/utils";
+import { STORE_DISPLAY_PICTURE_ACCEPT, uploadStoreDisplayPicture } from "@/lib/storeDisplayPicture";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
@@ -107,6 +108,7 @@ function OnboardingPage() {
   const [debouncedStoreSlug, setDebouncedStoreSlug] = useState("");
   const [storeSlugTaken, setStoreSlugTaken] = useState(false);
   const [orderPhone, setOrderPhone] = useState("");
+  const [displayPicture, setDisplayPicture] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -213,6 +215,15 @@ function OnboardingPage() {
         .single();
       if (storeError) throw storeError;
 
+      if (displayPicture) {
+        try {
+          await uploadStoreDisplayPicture(store.id, displayPicture);
+        } catch (imageError) {
+          await supabase.from("stores").delete().eq("id", store.id);
+          throw imageError;
+        }
+      }
+
       saveSelectedStoreId(store.id);
       navigate({ to: "/admin" });
     } catch (err) {
@@ -256,6 +267,15 @@ function OnboardingPage() {
           <div className="pt-2">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">First Store</p>
             <div className="space-y-3">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium">Display picture <span className="text-muted-foreground">(optional)</span></label>
+                <Input
+                  type="file"
+                  accept={STORE_DISPLAY_PICTURE_ACCEPT}
+                  onChange={(event) => setDisplayPicture(event.target.files?.[0] ?? null)}
+                />
+                {displayPicture && <p className="mt-1 text-xs text-muted-foreground">{displayPicture.name}</p>}
+              </div>
               <Input
                 placeholder="Store name"
                 value={storeName}

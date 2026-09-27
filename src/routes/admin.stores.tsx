@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Field } from "@/components/admin/Field";
 import { useAdminStores, slugify } from "@/hooks/useAdminStores";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { cn } from "@/lib/utils";
-import { Share2 } from "lucide-react";
+import { shareStore as shareStoreContent } from "@/lib/productShare";
+import { STORE_DISPLAY_PICTURE_ACCEPT, uploadStoreDisplayPicture } from "@/lib/storeDisplayPicture";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ImageUp, Share2 } from "lucide-react";
 
 export const Route = createFileRoute("/admin/stores")({
   component: AdminStores,
@@ -21,6 +25,11 @@ function AdminStores() {
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [debouncedSlug, setDebouncedSlug] = useState("");
   const [slugTaken, setSlugTaken] = useState(false);
+  const [displayPictureStoreId, setDisplayPictureStoreId] = useState<string | null>(null);
+  const [displayPictureError, setDisplayPictureError] = useState("");
+  const [isUpdatingDisplayPicture, setIsUpdatingDisplayPicture] = useState(false);
+  const displayPictureInputRef = useRef<HTMLInputElement>(null);
+  const displayPictureStore = stores.find((store) => store.id === displayPictureStoreId) ?? null;
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedSlug(form.slug.trim()), 350);
@@ -59,7 +68,7 @@ function AdminStores() {
           name: form.name.trim(),
           slug,
           order_notification_phone: form.order_notification_phone.trim() || null,
-        } as any)
+        })
         .select("id")
         .single();
       if (error) throw error;
@@ -74,8 +83,8 @@ function AdminStores() {
   });
 
   const updateStore = useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: Record<string, unknown> }) => {
-      const { error } = await supabase.from("stores").update(patch as any).eq("id", id);
+    mutationFn: async ({ id, patch }: { id: string; patch: TablesUpdate<"stores"> }) => {
+      const { error } = await supabase.from("stores").update(patch).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["owned-stores", user?.id] }),
@@ -83,21 +92,28 @@ function AdminStores() {
 
   const shareStore = async (store: (typeof stores)[number]) => {
     const url = new URL(`/s/${store.slug}`, window.location.origin).toString();
-    const shareData: ShareData = {
-      title: store.name,
-      text: store.name,
-      url,
-    };
 
     try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-        return;
-      }
-
-      await navigator.clipboard.writeText(url);
+      await shareStoreContent({ name: store.name, url, imageUrl: store.logo_url });
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) throw error;
+    }
+  };
+
+  const updateDisplayPicture = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !displayPictureStore) return;
+
+    try {
+      setDisplayPictureError("");
+      setIsUpdatingDisplayPicture(true);
+      await uploadStoreDisplayPicture(displayPictureStore.id, file);
+      await qc.invalidateQueries({ queryKey: ["owned-stores", user?.id] });
+    } catch (error) {
+      setDisplayPictureError(error instanceof Error ? error.message : "Could not update the display picture.");
+    } finally {
+      setIsUpdatingDisplayPicture(false);
+      event.target.value = "";
     }
   };
 
@@ -117,9 +133,19 @@ function AdminStores() {
                 className="border border-border p-3 space-y-3"
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold uppercase tracking-wider">{store.name}</p>
-                    <p className="truncate text-[10px] text-muted-foreground">/s/{store.slug}</p>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <button
+                      type="button"
+                      className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden border border-border bg-secondary text-xs font-bold uppercase transition-opacity hover:opacity-80"
+                      onClick={() => setDisplayPictureStoreId(store.id)}
+                      aria-label={`View or edit ${store.name} display picture`}
+                    >
+                      {store.logo_url ? <img src={store.logo_url} alt="" className="h-full w-full object-cover" /> : store.name.slice(0, 1)}
+                    </button>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold uppercase tracking-wider">{store.name}</p>
+                      <p className="truncate text-[10px] text-muted-foreground">/s/{store.slug}</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shareStore(store)} aria-label={`Share ${store.name}`}>
@@ -176,6 +202,34 @@ function AdminStores() {
           </div>
         )}
       </section>
+
+      <Dialog open={Boolean(displayPictureStore)} onOpenChange={(open) => {
+        if (!open) {
+          setDisplayPictureStoreId(null);
+          setDisplayPictureError("");
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="pr-8">
+            <DialogTitle className="text-sm uppercase tracking-wider">Store Display Picture</DialogTitle>
+            <DialogDescription className="text-xs">This image is shown on your store card and when the store is shared.</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center">
+            {displayPictureStore?.logo_url ? (
+              <img src={displayPictureStore.logo_url} alt={`${displayPictureStore.name} display picture`} className="max-h-80 w-full object-contain" />
+            ) : (
+              <div className="flex aspect-square w-full max-w-72 items-center justify-center bg-secondary text-4xl font-bold uppercase text-muted-foreground">
+                {displayPictureStore?.name.slice(0, 1)}
+              </div>
+            )}
+          </div>
+          <input ref={displayPictureInputRef} type="file" accept={STORE_DISPLAY_PICTURE_ACCEPT} className="sr-only" onChange={updateDisplayPicture} />
+          {displayPictureError && <p className="text-xs text-destructive">{displayPictureError}</p>}
+          <Button type="button" variant="outline" disabled={isUpdatingDisplayPicture} onClick={() => displayPictureInputRef.current?.click()}>
+            <ImageUp className="h-4 w-4" /> {isUpdatingDisplayPicture ? "Updating..." : "Edit Picture"}
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       <section>
         <h2 className="text-sm font-bold uppercase tracking-wider mb-4">Create Store</h2>
